@@ -1,0 +1,15 @@
+CTV underdelivery is a cross-system operating problem. Ad operations teams move between pacing, targeting, inventory, creative validation, and auction data while a client waits for an answer. AdOps Signal turns those fragmented signals into an accountable resolution workflow.
+
+The operations queue ranks campaigns by delivery risk. It exposes pacing, delivery gap, booked media under review, the leading issue, and the next operator action before an escalation begins.
+
+Starting an investigation carries the campaign into an evidence workspace. The orchestrator first understands the question, then selects bounded tools. A targeting question checks eligibility and request failures. A creative question checks approval and VAST errors. A goal question forecasts required daily delivery and projected shortfall. The answers are materially different because the evidence plans are different.
+
+For Campaign 1045, targeting analysis finds only fourteen point nine percent eligible supply and a seventy-nine point three percent request failure rate. Creative analysis finds five VAST timeout errors. The Friday forecast calculates a six-hundred-and-ninety-four-thousand impression shortfall at the current run rate.
+
+Every root cause cites its supporting evidence. The result also exposes confidence, execution mode, retrieved operating guidance, and the complete tool trace. With a provider key, a structured language model ranks grounded evidence. Without one, the same tools feed a transparent deterministic fallback.
+
+Recommended actions never silently mutate a campaign. They enter a decision queue where an authorized operator must record a rationale before approval or rejection. The decision remains attached to future diagnoses.
+
+The governance record preserves the original question, investigation lens, tools, diagnosis, reviewer, timestamp, outcome, and rationale as separate accountable events.
+
+The repository also includes authentication, role controls, database migrations, metrics, continuous integration, thirteen backend tests, and fifteen golden diagnostic evaluations with complete evidence grounding.

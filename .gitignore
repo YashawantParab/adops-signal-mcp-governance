@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+adops_signal.db
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+tsconfig.tsbuildinfo
+npm-debug.log*
+pnpm-lock.yaml
+
+# Environment
+.env
+.env.local
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Generated demo intermediates
+docs/demo/*.aiff

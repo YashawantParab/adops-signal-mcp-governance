@@ -1,0 +1,46 @@
+databases:
+  - name: adops-signal-db
+    plan: free
+    databaseName: adops_signal
+    user: adops_signal
+
+services:
+  - type: web
+    name: adops-signal-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /ready
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adops-signal-db
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: SEED_DEMO_DATA
+        value: if-empty
+      - key: AUTH_ENABLED
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini
+      - key: RAG_EMBEDDING_PROVIDER
+        value: local
+
+  - type: web
+    name: adops-signal-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    envVars:
+      - key: API_BASE_URL
+        sync: false

@@ -1,0 +1,61 @@
+name: adops-signal
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: adops-signal-db
+    environment:
+      POSTGRES_DB: adops_signal
+      POSTGRES_USER: adops
+      POSTGRES_PASSWORD: adops
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adops -d adops_signal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: adops-signal-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://adops:adops@db:5432/adops_signal
+      FRONTEND_ORIGIN: http://localhost:3000
+      ENVIRONMENT: docker
+      SEED_DEMO_DATA: "true"
+      AUTH_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-before-deploy}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      RAG_EMBEDDING_PROVIDER: ${RAG_EMBEDDING_PROVIDER:-local}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: adops-signal-web
+    environment:
+      API_BASE_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

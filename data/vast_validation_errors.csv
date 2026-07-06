@@ -1,0 +1,21 @@
+id,creative_id,error_code,error_message,severity,detected_at
+601,506,COMPANION_MISSING,Required companion asset is missing from the creative package.,high,2026-06-23T08:00:00
+602,506,COMPANION_MISSING,Required companion asset is missing from the creative package.,high,2026-06-23T09:00:00
+603,506,COMPANION_MISSING,Required companion asset is missing from the creative package.,high,2026-06-23T10:00:00
+604,506,COMPANION_MISSING,Required companion asset is missing from the creative package.,high,2026-06-23T11:00:00
+605,501,VAST_TIMEOUT,VAST wrapper chain exceeded timeout threshold.,medium,2026-06-23T08:00:00
+606,501,VAST_TIMEOUT,VAST wrapper chain exceeded timeout threshold.,medium,2026-06-23T09:00:00
+607,501,VAST_TIMEOUT,VAST wrapper chain exceeded timeout threshold.,medium,2026-06-23T10:00:00
+608,501,VAST_TIMEOUT,VAST wrapper chain exceeded timeout threshold.,medium,2026-06-23T11:00:00
+609,501,VAST_TIMEOUT,VAST wrapper chain exceeded timeout threshold.,medium,2026-06-23T12:00:00
+610,505,VAST_TIMEOUT,Media file host responded too slowly for CTV playback.,high,2026-06-23T08:00:00
+611,505,VAST_TIMEOUT,Media file host responded too slowly for CTV playback.,high,2026-06-23T09:00:00
+612,505,VAST_TIMEOUT,Media file host responded too slowly for CTV playback.,high,2026-06-23T10:00:00
+613,505,VAST_TIMEOUT,Media file host responded too slowly for CTV playback.,high,2026-06-23T11:00:00
+614,513,MEDIAFILE_MISSING,No compatible MP4 media file was found in the VAST response.,high,2026-06-23T08:00:00
+615,513,MEDIAFILE_MISSING,No compatible MP4 media file was found in the VAST response.,high,2026-06-23T09:00:00
+616,513,MEDIAFILE_MISSING,No compatible MP4 media file was found in the VAST response.,high,2026-06-23T10:00:00
+617,516,TRACKING_URI_ERROR,Tracking URI returned a non-200 response.,medium,2026-06-23T08:00:00
+618,516,TRACKING_URI_ERROR,Tracking URI returned a non-200 response.,medium,2026-06-23T09:00:00
+619,516,TRACKING_URI_ERROR,Tracking URI returned a non-200 response.,medium,2026-06-23T10:00:00
+620,516,TRACKING_URI_ERROR,Tracking URI returned a non-200 response.,medium,2026-06-23T11:00:00

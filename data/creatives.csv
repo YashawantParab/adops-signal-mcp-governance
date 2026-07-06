@@ -1,0 +1,21 @@
+id,campaign_id,creative_name,format,duration_seconds,vast_url,approval_status,rejection_reason,last_validated_at
+501,1045,RheinAuto CTV Launch 15s V1,VAST,15,https://ads.example.test/vast/1045/1,approved,,2026-06-23T09:00:00
+502,1045,RheinAuto CTV Launch 20s V2,VAST,20,https://ads.example.test/vast/1045/2,approved,,2026-06-22T10:00:00
+503,1045,RheinAuto CTV Launch 25s V3,VAST,25,https://ads.example.test/vast/1045/3,approved,,2026-06-21T11:00:00
+504,1045,RheinAuto CTV Launch 30s V4,VAST,30,https://ads.example.test/vast/1045/4,approved,,2026-06-20T12:00:00
+505,1046,NordicStream Family Addressable 15s V1,VAST,15,https://ads.example.test/vast/1046/1,approved,,2026-06-23T09:00:00
+506,1046,NordicStream Family Addressable 20s V2,VAST,20,https://ads.example.test/vast/1046/2,rejected,Missing companion asset for addressable TV placement.,2026-06-22T10:00:00
+507,1046,NordicStream Family Addressable 25s V3,VAST,25,https://ads.example.test/vast/1046/3,approved,,2026-06-21T11:00:00
+508,1046,NordicStream Family Addressable 30s V4,VAST,30,https://ads.example.test/vast/1046/4,approved,,2026-06-20T12:00:00
+509,1047,LuxeHome Premium Video 15s V1,VAST,15,https://ads.example.test/vast/1047/1,approved,,2026-06-23T09:00:00
+510,1047,LuxeHome Premium Video 20s V2,VAST,20,https://ads.example.test/vast/1047/2,approved,,2026-06-22T10:00:00
+511,1047,LuxeHome Premium Video 25s V3,VAST,25,https://ads.example.test/vast/1047/3,approved,,2026-06-21T11:00:00
+512,1047,LuxeHome Premium Video 30s V4,VAST,30,https://ads.example.test/vast/1047/4,approved,,2026-06-20T12:00:00
+513,1048,GameHub Summer Quest 15s V1,VAST,15,https://ads.example.test/vast/1048/1,approved,,2026-06-23T09:00:00
+514,1048,GameHub Summer Quest 20s V2,VAST,20,https://ads.example.test/vast/1048/2,approved,,2026-06-22T10:00:00
+515,1048,GameHub Summer Quest 25s V3,VAST,25,https://ads.example.test/vast/1048/3,approved,,2026-06-21T11:00:00
+516,1048,GameHub Summer Quest 30s V4,VAST,30,https://ads.example.test/vast/1048/4,approved,,2026-06-20T12:00:00
+517,1049,RheinAuto Sponsorship Takeover 15s V1,VAST,15,https://ads.example.test/vast/1049/1,approved,,2026-06-23T09:00:00
+518,1049,RheinAuto Sponsorship Takeover 20s V2,VAST,20,https://ads.example.test/vast/1049/2,approved,,2026-06-22T10:00:00
+519,1049,RheinAuto Sponsorship Takeover 25s V3,VAST,25,https://ads.example.test/vast/1049/3,approved,,2026-06-21T11:00:00
+520,1049,RheinAuto Sponsorship Takeover 30s V4,VAST,30,https://ads.example.test/vast/1049/4,approved,,2026-06-20T12:00:00

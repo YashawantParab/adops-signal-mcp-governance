@@ -1,0 +1,93 @@
+[
+  {
+    "id": "G01",
+    "campaign_id": 1045,
+    "query": "Why is Campaign 1045 underdelivering?",
+    "expected_all": ["Narrow targeting", "VAST validation issue"]
+  },
+  {
+    "id": "G02",
+    "campaign_id": 1045,
+    "query": "Which targeting rule is killing delivery?",
+    "expected_all": ["Narrow targeting"]
+  },
+  {
+    "id": "G03",
+    "campaign_id": 1045,
+    "query": "Is the VAST creative contributing to the shortfall?",
+    "expected_all": ["VAST validation issue"]
+  },
+  {
+    "id": "G04",
+    "campaign_id": 1046,
+    "query": "Why is the addressable TV campaign behind plan?",
+    "expected_all": ["Creative rejected", "Frequency Cap Exceeded"]
+  },
+  {
+    "id": "G05",
+    "campaign_id": 1046,
+    "query": "Can the rejected creative serve?",
+    "expected_all": ["Creative rejected"]
+  },
+  {
+    "id": "G06",
+    "campaign_id": 1046,
+    "query": "Is the frequency cap restricting repeat reach?",
+    "expected_all": ["Frequency Cap Exceeded"]
+  },
+  {
+    "id": "G07",
+    "campaign_id": 1047,
+    "query": "Why are we losing auctions despite healthy pacing?",
+    "expected_all": ["Bid price below floor"]
+  },
+  {
+    "id": "G08",
+    "campaign_id": 1047,
+    "query": "Are our bids competitive with publisher floors?",
+    "expected_all": ["Bid price below floor"]
+  },
+  {
+    "id": "G09",
+    "campaign_id": 1047,
+    "query": "What inventory expansion would reduce concentration risk?",
+    "expected_all": ["Narrow targeting"]
+  },
+  {
+    "id": "G10",
+    "campaign_id": 1048,
+    "query": "Why did GameHub delivery collapse?",
+    "expected_all": ["Narrow targeting", "Device Targeting Mismatch"]
+  },
+  {
+    "id": "G11",
+    "campaign_id": 1048,
+    "query": "Do request failures show a device mismatch?",
+    "expected_all": ["Device Targeting Mismatch"]
+  },
+  {
+    "id": "G12",
+    "campaign_id": 1048,
+    "query": "Did the campaign start late?",
+    "expected_all": ["Campaign started late"]
+  },
+  {
+    "id": "G13",
+    "campaign_id": 1048,
+    "query": "Are creative validation problems reducing delivery?",
+    "expected_all": ["VAST validation issue"]
+  },
+  {
+    "id": "G14",
+    "campaign_id": 1049,
+    "query": "Is this high-priority sponsorship healthy?",
+    "expected_all": ["Bid price below floor"]
+  },
+  {
+    "id": "G15",
+    "campaign_id": 1049,
+    "query": "Is this campaign consuming inventory needed by other campaigns?",
+    "expected_all": ["Shared inventory pressure"],
+    "required_evidence_terms": ["high priority", "other campaigns"]
+  }
+]

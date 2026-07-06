@@ -1,0 +1,6 @@
+id,advertiser_id,campaign_name,campaign_type,start_date,end_date,goal_impressions,delivered_impressions,budget,status,target_countries,target_devices,target_content_categories,frequency_cap,bid_floor,priority_level
+1045,201,RheinAuto CTV Launch,CTV Awareness,2026-06-10,2026-06-27,1000000,238000,95000,active,"[""DE"", ""AT""]","[""CTV""]","[""Sports""]",2,15.0,Standard
+1046,202,NordicStream Family Addressable,Addressable TV,2026-06-13,2026-06-30,650000,96000,62000,active,"[""AT""]","[""HbbTV""]","[""Entertainment""]",1,14.5,Standard
+1047,203,LuxeHome Premium Video,Online Video,2026-06-01,2026-06-28,800000,515000,58000,active,"[""DE""]","[""Desktop"", ""Mobile""]","[""Lifestyle"", ""Finance""]",4,10.5,Low
+1048,204,GameHub Summer Quest,CTV Awareness,2026-06-18,2026-06-26,450000,54000,44000,active,"[""SE"", ""NO""]","[""CTV""]","[""Gaming"", ""Entertainment""]",3,13.0,Standard
+1049,201,RheinAuto Sponsorship Takeover,CTV Sponsorship,2026-06-01,2026-06-25,1200000,1050000,160000,active,"[""DE""]","[""CTV"", ""HbbTV""]","[""Sports"", ""Entertainment"", ""News""]",6,19.0,High
