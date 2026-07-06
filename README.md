@@ -105,7 +105,7 @@ The value model is transparent and editable rather than presented as invented re
 flowchart LR
     Query["Operator question"] --> Tools["Bounded AdTech tools"]
     Tools --> Facts["Evidence IDs"]
-    Query --> RAG["pgvector playbook retrieval"]
+    Query --> RAG["pgvector retrieval (local-hash or OpenAI embeddings)"]
     Facts --> LLM["Structured LLM reasoner"]
     RAG --> LLM
     LLM --> Validate{"All causes cite valid evidence?"}
@@ -118,6 +118,7 @@ flowchart LR
 
 ### Tool layer
 
+- Campaign summary (identity, flight dates, delivery, risk level).
 - Campaign pacing.
 - Campaign setup and launch timing.
 - Targeting eligibility.
@@ -127,15 +128,25 @@ flowchart LR
 - Bid/floor competitiveness.
 - Vector documentation retrieval.
 
+Every diagnosis response returns the campaign ID, ranked root causes with evidence IDs, confidence, risk level, recommended actions, the exact tool names called, the playbook sources used, and the execution mode (`llm_rag` or `fallback`) — the full path from campaign data to evidence-backed diagnosis is inspectable, not just the final sentence.
+
+The bounded tool set is also enumerable at `GET /api/agent/tools`, described in an MCP-compatible shape (name, description, input schema, output contract) — see [Tool Registry And MCP](#tool-registry-and-mcp) below.
+
 ### Reasoning layer
 
-When configured, `gpt-5.4-mini` receives compact campaign context, evidence IDs, and retrieved guidance. It must return the strict `GroundedDiagnosis` schema. Causes with invalid evidence references are discarded.
+When configured, `gpt-5.4-mini` receives compact campaign context, evidence IDs, and retrieved guidance. It must return the strict `GroundedDiagnosis` schema. Causes with invalid evidence references are discarded. The prompt also guards against fake certainty and against blaming a specific publisher or partner unless the evidence directly supports it.
 
 The model does not receive a database connection, credentials, or an action-execution tool.
 
 ### Availability fallback
 
-Without a provider key, or when the provider fails, the application returns a clearly marked deterministic diagnosis. This is a resilience path, not the primary production reasoning mode.
+Without a provider key, or when the provider fails, the application returns a clearly marked deterministic diagnosis. This is a resilience path, not the primary production reasoning mode. Both modes call the same bounded tools and the same RAG retrieval — only the synthesis step differs — so `execution_mode` in the API/UI is the only thing that changes, not the evidence trail.
+
+## Tool Registry And MCP
+
+The agent's tool surface is intentionally small (ten bounded tools, one internal consumer). We evaluated adding a full [Model Context Protocol](https://modelcontextprotocol.io) server and decided against it for now: MCP earns its complexity when multiple agent hosts or external consumers need to call the same tools over a standard transport, which isn't the case here. Building one anyway would add a process, a transport, and new failure modes to the demo for no visible workflow improvement.
+
+Instead, `backend/app/agent/tool_registry.py` declares every tool in an MCP-compatible descriptor shape (`name`, `description`, `input_schema`, `output_contract`), served read-only at `GET /api/agent/tools`. This keeps the tool surface enumerable and documented today, and is the exact shape a future MCP server would wrap if a second agent host ever needed it — see [AI_AGENT_DESIGN.md](./docs/AI_AGENT_DESIGN.md#tool-registry--mcp-readiness) for the full decision record.
 
 ## Architecture
 
@@ -185,10 +196,14 @@ The repository contains 15 golden troubleshooting cases and 13 passing backend t
 |---|---:|---:|
 | Golden root-cause recall | 100% | 90% |
 | Evidence provenance coverage | 100% | 100% |
+| Client-safe brief guardrail pass rate | 100% | 100% |
+| Governance workflow (diagnose → approve → audit) | Passing | Passing |
 | Backend tests | 13 passing | 100% |
 | Frontend production build | Passing | Passing |
 
 These numbers measure the deterministic synthetic benchmark. They are not a claim of accuracy on customer incidents. A provider-specific LLM report requires an API key, repeated runs, and expert-labeled real incidents.
+
+The suite also reports a `playbook_relevance_rate` for the small subset of cases with an expected playbook source. Read this number honestly: the default local-hash embedding fallback (no `OPENAI_API_KEY`) is a deterministic placeholder for offline development, not a semantic embedding — it is noisy for short queries, so this metric is informational and does not gate release. Retrieval quality should be re-measured with `RAG_EMBEDDING_PROVIDER=openai` before treating it as a real quality signal.
 
 ```bash
 cd backend
@@ -282,6 +297,23 @@ docker compose up --build
 This deletes the Postgres volume for this project entirely. Only run it if the scoped reseed above does not fix the problem, since it discards all local state, not just demo tables.
 
 Hosted demo configuration uses `SEED_DEMO_DATA=if-empty` (seeds once, does not wipe on restart); production should use `false`.
+
+### Regenerate The Recorded Demo Video
+
+`docs/demo/adops-signal-demo.webm` is produced by a Playwright script that drives the running app end-to-end (dashboard → diagnose Campaign 1048 → Decision Queue → approve → Governance Record). It always approves whichever recommendation is currently pending for Campaign 1048 rather than a fixed id, so it is safe to rerun. If Campaign 1048 has no pending recommendation left (for example, a previous run already decided the only one), reseed first:
+
+```bash
+docker compose exec backend python seed.py
+```
+
+Then regenerate the recording:
+
+```bash
+cd scripts/demo-recorder
+npm install
+npx playwright install --with-deps chromium
+npm run record
+```
 
 ## Environment Variables
 
@@ -400,9 +432,11 @@ No genuine customer interviews are claimed. The repository includes a ready-to-r
 - Synthetic data only.
 - No genuine user interviews completed yet.
 - No live model benchmark without an API key.
+- The default local-hash embedding fallback is deterministic and offline-friendly, but its retrieval relevance is noisy for short queries; it is a development placeholder, not a claim of production-quality semantic search. Configure `RAG_EMBEDDING_PROVIDER=openai` for a real relevance benchmark.
 - VAST checks use controlled synthetic validation rather than fetching arbitrary tags.
 - Demo authentication is not enterprise SSO.
 - No direct mutation of live campaign settings.
+- The tool registry (`GET /api/agent/tools`) documents the bounded tool surface in an MCP-compatible shape; it is not a running MCP server, by deliberate choice (see [Tool Registry And MCP](#tool-registry-and-mcp)).
 - Public deployment still requires the repository owner to connect a cloud account.
 
 ## Why This Project Matters

@@ -22,6 +22,8 @@ class RetrievedChunk:
     title: str
     content: str
     score: float
+    embedding_provider: str
+    search_backend: str
 
 
 def _local_embedding(text: str) -> list[float]:
@@ -103,6 +105,9 @@ def retrieve(db: Session, query: str, limit: int = 4) -> list[RetrievedChunk]:
     query_vector, _ = embed_texts([query])
     vector = query_vector[0]
     dialect = db.get_bind().dialect.name
+    # Honest labeling: report exactly which vector search path and embedding
+    # produced each result, rather than implying pgvector when it isn't active.
+    search_backend = "pgvector_cosine_distance" if dialect == "postgresql" else "in_memory_cosine_fallback"
     if dialect == "postgresql":
         rows = list(
             db.execute(
@@ -117,6 +122,8 @@ def retrieve(db: Session, query: str, limit: int = 4) -> list[RetrievedChunk]:
                 title=row.title,
                 content=row.content,
                 score=round(float(_cosine_similarity(vector, list(row.embedding))), 4),
+                embedding_provider=row.embedding_provider,
+                search_backend=search_backend,
             )
             for row in rows
         ]
@@ -128,6 +135,13 @@ def retrieve(db: Session, query: str, limit: int = 4) -> list[RetrievedChunk]:
         reverse=True,
     )[:limit]
     return [
-        RetrievedChunk(source=row.source, title=row.title, content=row.content, score=round(score, 4))
+        RetrievedChunk(
+            source=row.source,
+            title=row.title,
+            content=row.content,
+            score=round(score, 4),
+            embedding_provider=row.embedding_provider,
+            search_backend=search_backend,
+        )
         for row, score in scored
     ]

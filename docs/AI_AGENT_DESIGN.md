@@ -21,15 +21,23 @@ The agent is not justified for simple metric lookup. Those questions should cont
 ## Workflow
 
 1. Validate authenticated user and campaign context.
-2. Call pacing, campaign setup, targeting, inventory, portfolio pressure, VAST, and bid tools.
+2. Call the campaign summary, pacing, campaign setup, targeting, inventory, portfolio pressure, VAST, and bid tools.
 3. Assign immutable evidence IDs.
 4. Retrieve relevant playbook chunks through vector similarity.
 5. Send only necessary campaign context, evidence, and guidance to the model.
 6. Require structured JSON matching `GroundedDiagnosis`.
 7. Remove root causes that cite unknown evidence IDs.
 8. Persist pending recommendations and the full audit trace.
-9. Return model name, prompt version, execution mode, latency, confidence, and sources.
+9. Return campaign ID, root causes, evidence, confidence, risk level, recommended actions, tool
+   calls used, playbook sources used, model name, prompt version, execution mode, and latency.
 10. Fall back to grounded deterministic diagnosis if the provider is absent or fails.
+
+Recommendation creation and client-safe brief generation are deliberately *not* folded into this
+same bounded-tool call list. They are downstream, human-relevant artifacts gated by approval and
+audit, not automated evidence-gathering steps — collapsing them into the tool trace would blur the
+separation of Facts / Reasoning / Control this design is built around. Both consume the same
+evidence (the client-safe brief also retrieves playbook guidance; see RAG below) and both are
+visible as distinct stages in the UI and in `docs/DEMO_SCRIPT.md`.
 
 ## Model Strategy
 
@@ -55,15 +63,33 @@ The output is validated through Pydantic before it reaches a user.
 
 ## RAG
 
-Operational Markdown playbooks are:
+Operational Markdown playbooks (`data/adops_docs/*.md`: pacing, VAST/creative, inventory
+targeting, client-safe communication, governance/approval policy) are:
 
 1. Split into sections.
 2. Embedded into 1536-dimensional vectors.
 3. Stored in `knowledge_chunks`.
 4. Retrieved by cosine similarity.
-5. Passed to the model as guidance, never as campaign-specific proof.
+5. Passed to the model — and returned to the API/UI as structured `playbook_sources`
+   (source file, title, snippet, similarity score) — as guidance, never as campaign-specific proof.
 
-PostgreSQL uses pgvector distance operations. SQLite loads vectors for local cosine comparison.
+Retrieval is used both when diagnosing and when generating the client-safe brief, so client
+communication is grounded in the same playbook guidance as the diagnosis, not just raw metrics.
+
+Every retrieved chunk honestly reports which backend produced it, rather than implying pgvector
+when it isn't the active path:
+
+- **Search backend:** `pgvector_cosine_distance` on PostgreSQL (used by Docker Compose and
+  production), or `in_memory_cosine_fallback` on SQLite (used only by the local unit test suite).
+- **Embedding provider:** `local-hash-1536` (deterministic, offline, the default) or
+  `text-embedding-3-small` when `RAG_EMBEDDING_PROVIDER=openai` and a key is configured.
+
+The local-hash embedding is a real 1536-dimensional vector derived from token hashing, indexed and
+queried through the same pgvector cosine-distance path as OpenAI embeddings — the vector math and
+the database column are genuine. What it does **not** provide is production-grade semantic
+relevance: for short operator questions it is a noisy signal (confirmed empirically — see
+`EVALUATION_REPORT.md`), so treat its retrieval *quality* as a development placeholder even though
+the retrieval *mechanism* is real.
 
 ## Confidence
 
@@ -88,6 +114,7 @@ Model confidence is capped at 0.95 and displayed as a decision aid, not a probab
 | Conflicting causes | Similar evidence strength | Return ranked multi-causality |
 | Prompt injection in docs | Retrieved content separated as untrusted guidance | Model instruction hierarchy and output validator |
 | Approval bypass | Role mismatch | HTTP 403 and audit event |
+| Client-safe brief leaks internal terms | Golden-suite guardrail check scans generated briefs for forbidden terms | Release gate fails if any leakage is found |
 
 ## Evaluation
 
@@ -97,9 +124,33 @@ The release gate includes:
 - 90% minimum root-cause recall.
 - 100% evidence-ID coverage.
 - Zero unsupported high-impact recommendations.
+- 100% client-safe brief guardrail pass rate (no internal-term leakage).
+- A passing diagnose → approve → audit governance round trip.
 - Provider-specific latency and token reporting when a key is configured.
 
 See [EVALUATION_REPORT.md](./EVALUATION_REPORT.md).
+
+## Tool Registry & MCP Readiness
+
+The agent's tool surface is ten bounded functions in `app/agent/tools.py`, called by exactly one
+orchestrator (`AdOpsSignalAgent`). We evaluated adding a full [Model Context
+Protocol](https://modelcontextprotocol.io) server and deliberately did not build one: MCP earns its
+complexity when multiple agent hosts, or an external partner, need to invoke the same tools over a
+standard transport. Neither condition holds here, and running a second process just to demonstrate
+the acronym would add real failure surface (auth over MCP, another container, another thing that
+can break the demo recording) for zero visible workflow improvement — the opposite of this
+project's own principle of not adding infrastructure just because it sounds impressive.
+
+Instead, `app/agent/tool_registry.py` declares every tool as a `ToolDescriptor` — `name`,
+`description`, `input_schema`, `output_contract` — in the same shape an MCP tool listing would use,
+served read-only at `GET /api/agent/tools`. This is a descriptor registry, not a protocol
+implementation: it makes the bounded-tool design enumerable and inspectable today without adding a
+server, a transport, or a new consumer that doesn't yet exist.
+
+**The condition that would flip this decision:** a second agent host (e.g. a separate internal
+tool, or an external partner's agent) needing to call these same evidence tools. At that point, a
+thin MCP server wrapping the existing `app/agent/tools.py` functions behind this registry's
+metadata would be a same-day addition, not a redesign.
 
 ## Compute And Cost
 

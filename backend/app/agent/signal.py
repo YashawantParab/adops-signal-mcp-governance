@@ -12,7 +12,7 @@ from app.agent import tools
 from app.agent.llm_reasoner import LLMReasoner, PROMPT_VERSION
 from app.models import AgentAuditLog, Campaign
 from app.observability import AGENT_LATENCY, AGENT_RUNS
-from app.schemas import AgentDiagnoseResponse, EvidenceItem, RecommendationRead, RootCause
+from app.schemas import AgentDiagnoseResponse, EvidenceItem, PlaybookSource, RecommendationRead, RootCause
 from app.services.recommendation_service import attach_reviewer_identity, create_recommendation
 from app.time_utils import utc_now
 
@@ -54,6 +54,7 @@ class AdOpsSignalAgent:
     @staticmethod
     def _collect_tool_results(db: Session, campaign: Campaign, query: str, intent: str):
         builders = {
+            "summary": lambda: tools.check_campaign_summary(db, campaign),
             "pacing": lambda: tools.check_pacing(db, campaign),
             "setup": lambda: tools.check_frequency_and_dates(db, campaign),
             "targeting": lambda: tools.analyze_targeting(db, campaign),
@@ -65,16 +66,16 @@ class AdOpsSignalAgent:
             "docs": lambda: tools.retrieve_docs(db, query),
         }
         plans = {
-            "comprehensive": ["pacing", "setup", "targeting", "inventory", "portfolio", "creative", "bids", "goal", "docs"],
-            "targeting_inventory": ["pacing", "targeting", "inventory", "portfolio", "goal", "docs"],
-            "creative_vast": ["pacing", "creative", "goal", "docs"],
-            "bid_competitiveness": ["pacing", "inventory", "bids", "goal", "docs"],
-            "frequency_cap": ["pacing", "setup", "inventory", "goal", "docs"],
-            "launch_timing": ["pacing", "setup", "goal", "docs"],
-            "portfolio_pressure": ["pacing", "inventory", "portfolio", "bids", "goal", "docs"],
-            "goal_feasibility": ["pacing", "setup", "targeting", "inventory", "creative", "bids", "goal", "docs"],
-            "client_communication": ["pacing", "targeting", "creative", "goal", "docs"],
-            "next_action": ["pacing", "setup", "targeting", "inventory", "portfolio", "creative", "bids", "goal", "docs"],
+            "comprehensive": ["summary", "pacing", "setup", "targeting", "inventory", "portfolio", "creative", "bids", "goal", "docs"],
+            "targeting_inventory": ["summary", "pacing", "targeting", "inventory", "portfolio", "goal", "docs"],
+            "creative_vast": ["summary", "pacing", "creative", "goal", "docs"],
+            "bid_competitiveness": ["summary", "pacing", "inventory", "bids", "goal", "docs"],
+            "frequency_cap": ["summary", "pacing", "setup", "inventory", "goal", "docs"],
+            "launch_timing": ["summary", "pacing", "setup", "goal", "docs"],
+            "portfolio_pressure": ["summary", "pacing", "inventory", "portfolio", "bids", "goal", "docs"],
+            "goal_feasibility": ["summary", "pacing", "setup", "targeting", "inventory", "creative", "bids", "goal", "docs"],
+            "client_communication": ["summary", "pacing", "targeting", "creative", "goal", "docs"],
+            "next_action": ["summary", "pacing", "setup", "targeting", "inventory", "portfolio", "creative", "bids", "goal", "docs"],
         }
         return [builders[name]() for name in plans[intent]]
 
@@ -159,6 +160,7 @@ class AdOpsSignalAgent:
 
         recommendations = self._upsert_recommendations(db, campaign.id, causes)
         latency_ms = round((time.perf_counter() - started) * 1000)
+        rag_docs = payload.get("rag_documentation_lookup", {}).get("docs", [])
         response = AgentDiagnoseResponse(
             campaign_id=campaign.id,
             diagnosis=diagnosis,
@@ -175,15 +177,25 @@ class AdOpsSignalAgent:
             evidence=evidence,
             recommendations=[RecommendationRead.model_validate(item) for item in recommendations],
             confidence_score=confidence,
+            risk_level=payload.get("campaign_summary_tool", {}).get("risk_level", "Unknown"),
             human_approval_required=human_approval_required,
             query_intent=query_intent,
             execution_mode=execution_mode,
             model_name=model_name,
             prompt_version=PROMPT_VERSION,
             latency_ms=latency_ms,
-            retrieved_documents=sorted(
-                {doc["source"] for doc in payload["rag_documentation_lookup"]["docs"]}
-            ),
+            retrieved_documents=sorted({doc["source"] for doc in rag_docs}),
+            playbook_sources=[
+                PlaybookSource(
+                    source=doc["source"],
+                    title=doc["title"],
+                    snippet=doc["content"][:320],
+                    score=doc["score"],
+                    embedding_provider=doc["embedding_provider"],
+                    search_backend=doc["search_backend"],
+                )
+                for doc in rag_docs
+            ],
         )
         self._write_audit(
             db,
@@ -220,12 +232,17 @@ class AdOpsSignalAgent:
             else None
         )
         source_diagnosis = diagnosis or (response.diagnosis if response else "")
+        # When a diagnosis was already computed upstream, its evidence (including RAG
+        # playbook grounding) isn't passed back in; rebuild a bounded bundle here so the
+        # client-safe brief stays grounded in the same operational guidance, not just
+        # raw campaign metrics.
         evidence = response.evidence if response else [
             item
             for result in [
                 tools.check_pacing(db, campaign),
                 tools.analyze_targeting(db, campaign),
                 tools.validate_creatives(db, campaign),
+                tools.retrieve_docs(db, source_diagnosis or campaign.campaign_name),
             ]
             for item in result.evidence
         ]

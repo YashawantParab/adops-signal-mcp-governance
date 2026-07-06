@@ -88,6 +88,7 @@
     "campaign_id": 1049,
     "query": "Is this campaign consuming inventory needed by other campaigns?",
     "expected_all": ["Shared inventory pressure"],
-    "required_evidence_terms": ["high priority", "other campaigns"]
+    "required_evidence_terms": ["high priority", "other campaigns"],
+    "expected_playbook_source": "inventory_targeting.md"
   }
 ]

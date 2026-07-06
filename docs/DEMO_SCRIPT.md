@@ -10,9 +10,9 @@ Show Campaign 1048 at 39% pacing, its delivery gap, budget under review, and **S
 
 Open the investigation and run the default delivery question.
 
-“The orchestrator collects bounded evidence from pacing, setup, targeting, inventory, portfolio pressure, creative/VAST, and bid tools. RAG retrieves operating playbooks. A configured structured LLM ranks the evidence; without a provider key, the interface transparently uses its grounded availability fallback.”
+“The orchestrator collects bounded evidence from campaign summary, pacing, setup, targeting, inventory, portfolio pressure, creative/VAST, and bid tools. RAG retrieves operating playbooks by vector similarity. A configured structured LLM ranks the evidence; without a provider key, the interface transparently uses its grounded availability fallback — same tools, same RAG, only the synthesis step changes.”
 
-Point to confidence, semantic evidence IDs, root causes, model mode, tool trace, and retrieved sources.
+Point to the workflow strip (tool evidence → RAG → diagnosis → recommendation → brief → approval → governance), confidence, risk level, semantic evidence IDs, root causes, model mode, tool trace, and the Playbook Evidence panel — file, title, snippet, and similarity score, labeled with the actual retrieval backend in use.
 
 ## 0:55-1:15: Prepare Communication
 

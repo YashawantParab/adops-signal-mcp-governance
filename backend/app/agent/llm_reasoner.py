@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 
-PROMPT_VERSION = "adops-diagnosis-v3"
+PROMPT_VERSION = "adops-diagnosis-v4"
 
 
 class GroundedCause(BaseModel):
@@ -56,6 +56,9 @@ Non-negotiable guardrails:
 8. Answer the operator's exact question. For a narrow question about targeting, creative/VAST,
    bids, frequency, launch timing, shared inventory, or goal feasibility, omit unrelated causes
    even if they appear elsewhere in the evidence.
+9. Do not attribute fault to a specific publisher, advertiser, or partner unless the supplied
+   evidence directly supports it. Prefer describing the mechanism (e.g. "shared inventory
+   pressure") over blaming a named party.
 """.strip()
 
 
@@ -142,7 +145,9 @@ class LLMReasoner:
                         "Write a concise client-safe campaign update. Use only supplied evidence. "
                         "Do not expose publisher names, floor prices, loss reasons, internal tool names, "
                         "or raw validation traces. State the issue, its delivery effect, and the next step. "
-                        "Do not claim that a fix has already been applied."
+                        "Do not claim that a fix has already been applied. Do not state or imply certainty "
+                        "beyond what the evidence supports. Do not attribute fault to a specific publisher, "
+                        "advertiser, or partner unless the evidence directly supports it."
                     ),
                 },
                 {

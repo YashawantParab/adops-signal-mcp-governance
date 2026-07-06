@@ -1,0 +1,13 @@
+{
+  "name": "adops-signal-demo-recorder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone browser-automation script that records the AdOps Signal demo workflow. Not a product dependency.",
+  "type": "module",
+  "scripts": {
+    "record": "node record-demo.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}

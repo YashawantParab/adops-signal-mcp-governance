@@ -20,6 +20,28 @@ class ToolResult:
     payload: dict
 
 
+def check_campaign_summary(db: Session, campaign: Campaign) -> ToolResult:
+    health = campaign_service.get_campaign_health(db, campaign)
+    message = (
+        f"Campaign {campaign.id} ({campaign.campaign_name}) is {campaign.status}, {campaign.priority_level} "
+        f"priority, running {campaign.start_date} to {campaign.end_date}. Delivered "
+        f"{campaign.delivered_impressions:,} of {campaign.goal_impressions:,} goal impressions "
+        f"(budget EUR {float(campaign.budget):,.0f})."
+    )
+    return ToolResult(
+        name="campaign_summary_tool",
+        evidence=[EvidenceItem(source="campaigns", message=message, metric=f"{health.risk_level} risk")],
+        payload={
+            "campaign_id": campaign.id,
+            "campaign_name": campaign.campaign_name,
+            "status": campaign.status,
+            "priority_level": campaign.priority_level,
+            "risk_level": health.risk_level,
+            "pacing_percentage": health.pacing_percentage,
+        },
+    )
+
+
 def check_pacing(db: Session, campaign: Campaign) -> ToolResult:
     health = campaign_service.get_campaign_health(db, campaign)
     message = (
@@ -207,7 +229,10 @@ def check_frequency_and_dates(db: Session, campaign: Campaign) -> ToolResult:
 def retrieve_docs(db: Session, query: str) -> ToolResult:
     docs = retrieve(db, query)
     if docs:
-        message = "Retrieved " + ", ".join(doc.source for doc in docs)
+        backend_label = f"{docs[0].search_backend} ({docs[0].embedding_provider} embeddings)"
+        message = f"Retrieved {len(docs)} playbook section(s) via {backend_label}: " + ", ".join(
+            doc.source for doc in docs
+        )
     else:
         message = "No matching operational documentation found."
     evidence = [EvidenceItem(source="adops_docs", message=message)]
@@ -224,7 +249,14 @@ def retrieve_docs(db: Session, query: str) -> ToolResult:
         evidence=evidence,
         payload={
             "docs": [
-                {"source": doc.source, "title": doc.title, "content": doc.content, "score": doc.score}
+                {
+                    "source": doc.source,
+                    "title": doc.title,
+                    "content": doc.content,
+                    "score": doc.score,
+                    "embedding_provider": doc.embedding_provider,
+                    "search_backend": doc.search_backend,
+                }
                 for doc in docs
             ]
         },

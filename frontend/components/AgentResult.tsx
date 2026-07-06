@@ -1,13 +1,53 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { api } from "@/lib/api";
 import type { AgentDiagnosis } from "@/types";
 
+import { RetrievedSources } from "./RetrievedSources";
 import { RiskBadge } from "./RiskBadge";
 
+const WORKFLOW_STEPS = [
+  "Tool evidence",
+  "RAG playbook lookup",
+  "Structured diagnosis",
+  "Recommendation created",
+  "Client brief available",
+  "Pending approval",
+  "Governance record"
+];
+
 export function AgentResult({ result }: { result: AgentDiagnosis }) {
+  const [toolDescriptions, setToolDescriptions] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .agentTools()
+      .then((tools) => {
+        if (cancelled) return;
+        setToolDescriptions(Object.fromEntries(tools.map((tool) => [tool.name, tool.description])));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+        {WORKFLOW_STEPS.map((step, index) => (
+          <span key={step} className="inline-flex items-center gap-1">
+            <span className="rounded-md border border-line bg-slate-50 px-2 py-1">{step}</span>
+            {index < WORKFLOW_STEPS.length - 1 ? <ArrowRight size={11} aria-hidden="true" /> : null}
+          </span>
+        ))}
+      </div>
+
       <div className="panel rounded-md p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -18,8 +58,11 @@ export function AgentResult({ result }: { result: AgentDiagnosis }) {
             <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-700">{result.diagnosis}</p>
           </div>
           <div className="text-right">
-            <div className="rounded-md border border-line bg-slate-50 px-3 py-2 text-sm font-semibold">
-              {Math.round(result.confidence_score * 100)}% confidence
+            <div className="flex items-center justify-end gap-2">
+              <div className="rounded-md border border-line bg-slate-50 px-3 py-2 text-sm font-semibold">
+                {Math.round(result.confidence_score * 100)}% confidence
+              </div>
+              <RiskBadge value={result.risk_level} />
             </div>
             <p className="mt-2 text-xs text-slate-500">
               {result.execution_mode === "llm_rag" ? result.model_name : "Resilient fallback"} · {result.latency_ms} ms
@@ -71,6 +114,8 @@ export function AgentResult({ result }: { result: AgentDiagnosis }) {
         </section>
       </div>
 
+      <RetrievedSources sources={result.playbook_sources} />
+
       <section className="panel rounded-md p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -115,7 +160,11 @@ export function AgentResult({ result }: { result: AgentDiagnosis }) {
             {result.query_intent.replaceAll("_", " ")}
           </span>
           {result.tools_called.map((tool) => (
-            <span key={tool} className="rounded-md border border-line bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
+            <span
+              key={tool}
+              title={toolDescriptions[tool] ?? tool}
+              className="rounded-md border border-line bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700"
+            >
               {tool}
             </span>
           ))}

@@ -1,0 +1,3 @@
+# Governance And Approval Policy
+
+Every agent-generated recommendation starts in a pending state and must never mutate a live campaign automatically. An AdOps Manager or Admin reviews the evidence, records a short rationale explaining what was checked and the expected outcome, and only then approves or rejects the action. Rejections are retained with the same rigor as approvals. Every decision permanently records the reviewer identity, timestamp, and rationale alongside the originating diagnosis, evidence trace, and model execution metadata, so the governance record can answer "who approved this, based on what evidence, and why" for any past action.

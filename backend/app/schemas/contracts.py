@@ -126,6 +126,15 @@ class RootCause(BaseModel):
     evidence_ids: list[str] = []
 
 
+class PlaybookSource(BaseModel):
+    source: str
+    title: str
+    snippet: str
+    score: float
+    embedding_provider: str
+    search_backend: str
+
+
 class RecommendationRead(BaseModel):
     id: int
     campaign_id: int
@@ -161,6 +170,7 @@ class AgentDiagnoseResponse(BaseModel):
     evidence: list[EvidenceItem]
     recommendations: list[RecommendationRead]
     confidence_score: float
+    risk_level: str = "Unknown"
     human_approval_required: bool
     query_intent: str = "comprehensive"
     execution_mode: str = "fallback"
@@ -168,6 +178,14 @@ class AgentDiagnoseResponse(BaseModel):
     prompt_version: str = "adops-diagnosis-v1"
     latency_ms: int = 0
     retrieved_documents: list[str] = []
+    playbook_sources: list[PlaybookSource] = []
+
+
+class ToolDescriptorRead(BaseModel):
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+    output_contract: str
 
 
 class VastValidationRequest(BaseModel):

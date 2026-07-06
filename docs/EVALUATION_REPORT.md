@@ -9,6 +9,8 @@ AdOps Signal is evaluated against 15 deterministic campaign troubleshooting case
 | Golden cases | 15 | 15 |
 | Grounded fallback root-cause recall | 100% | 90% |
 | Evidence provenance coverage | 100% | 100% |
+| Client-safe brief guardrail pass rate | 100% | 100% |
+| Governance workflow (diagnose → approve → audit) | Passing | Passing |
 | Backend tests | 13 passing | 100% passing |
 | Query-intent differentiation | 3/3 focused lenses | 3/3 |
 | Unsupported root-cause tolerance | 0 | 0 |
@@ -23,13 +25,38 @@ Each golden case contains:
 - One or more expected root-cause labels.
 - Optional evidence terms that must be present.
 - A requirement that every returned root cause cites valid evidence IDs.
+- Optionally, an expected playbook source (informational only — see Playbook Relevance below).
 
-The suite is stored in `backend/evals/golden_cases.json`. Run it with:
+The suite also runs two checks that are not per-case:
+
+- **Client-safe brief guardrails** — generates a brief for two representative campaigns and fails
+  if any internal-only term (publisher floor prices, loss reasons, internal tool names) leaks into
+  advertiser-facing text.
+- **Governance workflow round trip** — runs the exact diagnose → approve → audit path the UI
+  drives (Campaign 1048), and fails if the approval or audit record doesn't persist correctly.
+
+The suite is stored in `backend/evals/golden_cases.json` and `backend/evals/run_evaluation.py`. Run it with:
 
 ```bash
 cd backend
 python -m evals.run_evaluation
 ```
+
+### Playbook Relevance (Read This Honestly)
+
+One case (G15) asserts that a specific playbook file (`inventory_targeting.md`) is retrieved for a
+query about shared inventory pressure — verified empirically before being added. We did **not**
+add this assertion broadly: testing retrieval against the default local-hash embedding fallback
+(no `OPENAI_API_KEY`) against the other 4 playbook docs and 6 representative queries showed it is a
+noisy signal for short operator questions — the "obviously correct" doc was *not* always the top
+match. This is expected: the local-hash embedding is a deterministic offline placeholder (token
+hashing into a 1536-dim vector), not a trained semantic embedding.
+
+The mechanism is real (genuine pgvector cosine-distance search over a genuine vector column); the
+*retrieval quality* of the default offline embedding is not claimed to be production-grade. The
+suite reports `playbook_relevance_rate` as informational telemetry, not a gating metric, and this
+is the honest reason why. Re-run with `RAG_EMBEDDING_PROVIDER=openai` for a real relevance
+benchmark before citing this number as a quality claim.
 
 ## Coverage
 

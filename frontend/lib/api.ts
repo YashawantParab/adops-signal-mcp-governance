@@ -9,6 +9,7 @@ import type {
   RoiAssumptions,
   RoiEstimate,
   SystemStatus,
+  ToolDescriptor,
   User,
   VastValidationResponse
 } from "@/types";
@@ -80,6 +81,7 @@ export const api = {
       body: JSON.stringify({ campaign_id: campaignId, diagnosis })
     }),
   auditLogs: () => request<AuditLog[]>("/api/agent/audit-logs"),
+  agentTools: () => request<ToolDescriptor[]>("/api/agent/tools"),
   recommendations: () => request<Recommendation[]>("/api/recommendations"),
   campaignRecommendations: (campaignId: number) => request<Recommendation[]>(`/api/recommendations/${campaignId}`),
   approveRecommendation: (id: number, reason: string) =>

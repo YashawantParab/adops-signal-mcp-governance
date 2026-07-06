@@ -118,6 +118,15 @@ export interface Recommendation {
   decided_by_role?: string | null;
 }
 
+export interface PlaybookSource {
+  source: string;
+  title: string;
+  snippet: string;
+  score: number;
+  embedding_provider: string;
+  search_backend: string;
+}
+
 export interface AgentDiagnosis {
   campaign_id: number;
   diagnosis: string;
@@ -126,6 +135,7 @@ export interface AgentDiagnosis {
   evidence: EvidenceItem[];
   recommendations: Recommendation[];
   confidence_score: number;
+  risk_level: RiskLevel | string;
   human_approval_required: boolean;
   query_intent: string;
   execution_mode: "llm_rag" | "fallback";
@@ -133,6 +143,14 @@ export interface AgentDiagnosis {
   prompt_version: string;
   latency_ms: number;
   retrieved_documents: string[];
+  playbook_sources: PlaybookSource[];
+}
+
+export interface ToolDescriptor {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+  output_contract: string;
 }
 
 export interface AuditLog {

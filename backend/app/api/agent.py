@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent import AdOpsSignalAgent
+from app.agent.tool_registry import list_tools
 from app.database import get_db
 from app.models import AgentAuditLog, User
 from app.schemas import (
@@ -13,6 +14,7 @@ from app.schemas import (
     AuditLogRead,
     ClientSummaryRequest,
     ClientSummaryResponse,
+    ToolDescriptorRead,
     VastValidationRequest,
     VastValidationResponse,
 )
@@ -76,6 +78,16 @@ def generate_client_summary(
         ),
         omitted_internal_details=["bid loss reason details", "publisher floor pricing", "raw validation trace"],
     )
+
+
+@router.get("/tools", response_model=list[ToolDescriptorRead])
+def list_agent_tools(_: User = Depends(get_current_user)) -> list[ToolDescriptorRead]:
+    """Read-only registry of the bounded tools available to the diagnosis agent.
+
+    Described in an MCP-compatible shape (name, description, input schema, output
+    contract) so the tool surface is inspectable without a running MCP server.
+    """
+    return [ToolDescriptorRead(**descriptor.__dict__) for descriptor in list_tools()]
 
 
 @router.get("/audit-logs", response_model=list[AuditLogRead])
