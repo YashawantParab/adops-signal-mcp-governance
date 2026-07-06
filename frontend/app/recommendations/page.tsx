@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { RiskBadge } from "@/components/RiskBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StateViews";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api } from "@/lib/api";
+import { api, formatDateTime, formatReviewer } from "@/lib/api";
 import type { Recommendation } from "@/types";
 
 const DECISION_ROLES = ["admin", "adops_manager"];
@@ -201,7 +201,8 @@ function RecommendationWorkspace() {
                     <p className="text-xs font-semibold uppercase text-slate-500">Recorded decision</p>
                     <p className="mt-2 text-sm leading-6 text-slate-700">{item.decision_reason}</p>
                     <p className="mt-3 text-xs text-slate-500">
-                      User {item.decided_by_user_id} · {item.decided_at ? new Date(item.decided_at).toLocaleString() : "Time unavailable"}
+                      {formatReviewer(item.decided_by_name, item.decided_by_role, item.decided_by_user_id)} ·{" "}
+                      {item.decided_at ? formatDateTime(item.decided_at) : "Time unavailable"}
                     </p>
                     <Link
                       href={`/audit-logs?campaignId=${item.campaign_id}`}

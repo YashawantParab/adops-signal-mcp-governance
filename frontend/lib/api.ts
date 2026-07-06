@@ -107,10 +107,31 @@ export function formatPercent(value: number): string {
   return `${Math.round(value * 10) / 10}%`;
 }
 
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number, fractionDigits = 0): string {
   return new Intl.NumberFormat("en-DE", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
   }).format(value);
+}
+
+/**
+ * The backend stores and serializes timestamps as naive UTC (no "Z"/offset
+ * suffix), so `new Date(value)` alone would parse them as local time. Force
+ * UTC interpretation before formatting into an unambiguous "Jul 6, 2026 ·
+ * 12:56" style string.
+ */
+export function formatDateTime(value: string): string {
+  const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(value);
+  const date = new Date(hasTimezone ? value : `${value}Z`);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  const datePart = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  const timePart = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+  return `${datePart} · ${timePart}`;
+}
+
+export function formatReviewer(name?: string | null, role?: string | null, userId?: number | null): string {
+  if (name) return role ? `${name} (${role.replaceAll("_", " ")})` : name;
+  return userId ? `User ${userId}` : "Unknown reviewer";
 }

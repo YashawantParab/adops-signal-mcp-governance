@@ -138,6 +138,8 @@ class RecommendationRead(BaseModel):
     decision_reason: Optional[str] = None
     decided_at: Optional[datetime] = None
     decided_by_user_id: Optional[int] = None
+    decided_by_name: Optional[str] = None
+    decided_by_role: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

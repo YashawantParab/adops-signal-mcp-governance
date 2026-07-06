@@ -12,7 +12,7 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { ErrorState, LoadingState } from "@/components/StateViews";
 import { StatCard } from "@/components/StatCard";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api, formatNumber, formatPercent } from "@/lib/api";
+import { api, formatCurrency, formatNumber, formatPercent } from "@/lib/api";
 import type { AgentDiagnosis, CampaignDetail } from "@/types";
 
 export default function CampaignDetailPage() {
@@ -99,7 +99,7 @@ export default function CampaignDetailPage() {
             </div>
             <div>
               <dt className="text-slate-500">Bid floor</dt>
-              <dd className="font-medium">EUR {campaign.bid_floor}</dd>
+              <dd className="font-medium">{formatCurrency(campaign.bid_floor, 2)}</dd>
             </div>
             <div>
               <dt className="text-slate-500">Priority</dt>
@@ -146,7 +146,7 @@ export default function CampaignDetailPage() {
             <div>
               <dt className="text-slate-500">Average bid / floor</dt>
               <dd className="font-medium">
-                EUR {campaign.health.bid_analysis.avg_bid_price} / EUR {campaign.health.bid_analysis.avg_floor_price}
+                {formatCurrency(campaign.health.bid_analysis.avg_bid_price, 2)} / {formatCurrency(campaign.health.bid_analysis.avg_floor_price, 2)}
               </dd>
             </div>
           </dl>

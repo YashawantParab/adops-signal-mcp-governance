@@ -1,3 +1,4 @@
+import { formatPercent } from "@/lib/api";
 import type { CampaignDetail } from "@/types";
 
 import { RiskBadge } from "./RiskBadge";
@@ -23,7 +24,7 @@ export function PacingChart({ history }: { history: CampaignDetail["pacing_histo
               </div>
             </div>
             <div className="flex items-center justify-between gap-2 md:justify-end">
-              <span className="text-sm font-medium">{item.pacing_percentage}%</span>
+              <span className="text-sm font-medium">{formatPercent(item.pacing_percentage)}</span>
               <RiskBadge value={item.risk_level} />
             </div>
           </div>

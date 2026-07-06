@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { RiskBadge } from "@/components/RiskBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StateViews";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api } from "@/lib/api";
+import { api, formatDateTime, formatReviewer } from "@/lib/api";
 import type { AuditLog, Recommendation } from "@/types";
 
 const GOVERNANCE_ROLES = ["admin", "adops_manager", "product_manager"];
@@ -122,8 +122,8 @@ function AuditWorkspace() {
                   <p className="mt-1 text-sm leading-5 text-slate-600">{item.decision_reason}</p>
                 </div>
                 <div className="text-sm text-slate-500 lg:text-right">
-                  <p>User {item.decided_by_user_id}</p>
-                  <p className="mt-1">{item.decided_at ? new Date(item.decided_at).toLocaleString() : "Time unavailable"}</p>
+                  <p className="font-medium text-slate-700">{formatReviewer(item.decided_by_name, item.decided_by_role, item.decided_by_user_id)}</p>
+                  <p className="mt-1">{item.decided_at ? formatDateTime(item.decided_at) : "Time unavailable"}</p>
                 </div>
               </div>
             ))}
@@ -162,7 +162,7 @@ function AuditWorkspace() {
                       <Link className="font-semibold text-ink hover:text-accent" href={`/campaigns/${log.campaign_id}`}>
                         Campaign {log.campaign_id}
                       </Link>
-                      <p className="mt-1 text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</p>
+                      <p className="mt-1 text-xs text-slate-500">{formatDateTime(log.created_at)}</p>
                       <p className="mt-1 max-w-40 truncate font-mono text-xs text-slate-400">{log.request_id ?? `audit-${log.id}`}</p>
                     </td>
                     <td className="max-w-xs px-4 py-4 text-slate-700">{log.user_query}</td>

@@ -13,7 +13,7 @@ from app.agent.llm_reasoner import LLMReasoner, PROMPT_VERSION
 from app.models import AgentAuditLog, Campaign
 from app.observability import AGENT_LATENCY, AGENT_RUNS
 from app.schemas import AgentDiagnoseResponse, EvidenceItem, RecommendationRead, RootCause
-from app.services.recommendation_service import create_recommendation
+from app.services.recommendation_service import attach_reviewer_identity, create_recommendation
 from app.time_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -609,7 +609,7 @@ class AdOpsSignalAgent:
         db.commit()
         for recommendation in recommendations:
             db.refresh(recommendation)
-        return recommendations
+        return attach_reviewer_identity(db, recommendations)
 
     def _write_audit(
         self,

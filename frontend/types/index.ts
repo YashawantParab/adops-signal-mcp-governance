@@ -114,6 +114,8 @@ export interface Recommendation {
   decision_reason?: string | null;
   decided_at?: string | null;
   decided_by_user_id?: number | null;
+  decided_by_name?: string | null;
+  decided_by_role?: string | null;
 }
 
 export interface AgentDiagnosis {

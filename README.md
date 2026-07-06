@@ -262,12 +262,26 @@ docker compose up --build
 
 ### Reset Synthetic Data
 
+Safest option — reseed deterministic demo data in place, without touching the Postgres container or volume:
+
+```bash
+docker compose exec backend python seed.py
+```
+
+This truncates only the demo tables and reloads the same deterministic dataset. It does not stop any service and does not affect other Docker volumes on the machine.
+
+Note: because development Compose uses `SEED_DEMO_DATA=true`, every backend container restart (`docker compose restart backend`, `docker compose up --build`, etc.) already re-runs `seed.py` automatically — so any manual test data (e.g. an approval you made in the UI) is reset back to the deterministic seed. If you want to keep manually created state, avoid restarting the backend container.
+
+If the database itself is corrupted and a full rebuild is required, the destructive option is:
+
 ```bash
 docker compose down -v
 docker compose up --build
 ```
 
-Development Compose intentionally uses `SEED_DEMO_DATA=true`. Hosted demo configuration uses `if-empty`; production should use `false`.
+This deletes the Postgres volume for this project entirely. Only run it if the scoped reseed above does not fix the problem, since it discards all local state, not just demo tables.
+
+Hosted demo configuration uses `SEED_DEMO_DATA=if-empty` (seeds once, does not wipe on restart); production should use `false`.
 
 ## Environment Variables
 

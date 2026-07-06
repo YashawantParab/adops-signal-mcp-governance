@@ -9,7 +9,7 @@ import { AgentResult } from "@/components/AgentResult";
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState, LoadingState } from "@/components/StateViews";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api } from "@/lib/api";
+import { api, formatPercent } from "@/lib/api";
 import type { AgentDiagnosis, CampaignSummary } from "@/types";
 
 const queryPresets = [
@@ -128,7 +128,7 @@ function AgentWorkspace() {
         {selectedCampaign ? (
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 text-sm">
             <span className="font-medium text-slate-700">{selectedCampaign.risk_level} risk</span>
-            <span className="text-slate-500">{selectedCampaign.pacing_percentage}% pacing</span>
+            <span className="text-slate-500">{formatPercent(selectedCampaign.pacing_percentage)} pacing</span>
             <span className="text-slate-500">{selectedCampaign.main_issue}</span>
             <Link href={`/campaigns/${selectedCampaign.id}`} className="font-semibold text-accent hover:text-teal-700">
               Review campaign data
