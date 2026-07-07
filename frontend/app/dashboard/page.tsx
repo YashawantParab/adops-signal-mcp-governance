@@ -9,7 +9,7 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StateViews";
 import { StatCard } from "@/components/StatCard";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api, formatCurrency, formatNumber, formatPercent } from "@/lib/api";
+import { api, formatCompactCurrency, formatCompactNumber, formatNumber, formatPercent } from "@/lib/api";
 import type { CampaignSummary } from "@/types";
 
 export default function DashboardPage() {
@@ -72,8 +72,12 @@ export default function DashboardPage() {
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Campaigns monitored" value={formatNumber(campaigns.length)} hint="Across CTV and addressable" />
         <StatCard label="High-risk queue" value={formatNumber(stats.highRisk)} hint="Requires operator decision" />
-        <StatCard label="Delivery gap" value={formatNumber(stats.deliveryGap)} hint={`${formatPercent(stats.avgPacing)} portfolio pacing`} />
-        <StatCard label="Budget under review" value={formatCurrency(stats.atRiskBudget)} hint="Booked media on high-risk flights" />
+        <StatCard
+          label="Delivery gap"
+          value={formatCompactNumber(stats.deliveryGap)}
+          hint={`Impressions short of goal · portfolio pacing ${formatPercent(stats.avgPacing)}`}
+        />
+        <StatCard label="Budget under review" value={formatCompactCurrency(stats.atRiskBudget)} hint="Booked media on high-risk flights" />
       </div>
 
       {priorityCampaign ? (

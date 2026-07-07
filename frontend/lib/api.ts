@@ -105,17 +105,35 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
+/**
+ * Compact form for tight KPI tiles, e.g. 2147000 -> "2.15M", 54000 -> "54K".
+ * Use formatNumber() instead when full precision matters (tables, exports).
+ */
+export function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value);
+}
+
 export function formatPercent(value: number): string {
-  return `${Math.round(value * 10) / 10}%`;
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
 }
 
 export function formatCurrency(value: number, fractionDigits = 0): string {
-  return new Intl.NumberFormat("en-DE", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits
   }).format(value);
+}
+
+/**
+ * Compact currency for tight KPI tiles, e.g. 201000 -> "€201k", 1400000 -> "€1.4M".
+ * Use formatCurrency() instead when full precision matters.
+ */
+export function formatCompactCurrency(value: number): string {
+  const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return `€${compact.replace(/K$/, "k")}`;
 }
 
 /**
