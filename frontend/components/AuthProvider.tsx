@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { api, clearAuthToken, getAuthToken, setAuthToken } from "@/lib/api";
 import type { User } from "@/types";
@@ -22,7 +21,6 @@ export function useAuth(): AuthContextValue {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -42,13 +40,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await api.login(email, password);
     setAuthToken(response.access_token);
     setUser(response.user);
-    router.replace("/dashboard");
   }
 
   function logout() {
     clearAuthToken();
     setUser(null);
-    router.replace("/dashboard");
   }
 
   const value = useMemo(() => (user ? { user, logout } : null), [user]);
