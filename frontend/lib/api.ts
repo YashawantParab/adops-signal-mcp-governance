@@ -4,6 +4,7 @@ import type {
   CampaignDetail,
   CampaignHealth,
   CampaignSummary,
+  ClientSummaryResponse,
   Recommendation,
   AuthResponse,
   RoiAssumptions,
@@ -16,6 +17,26 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/proxy";
 const TOKEN_KEY = "adops-signal-token";
+const REQUEST_TIMEOUT_MS = 20_000;
+
+export const DEMO_VIEWER_ROLE = "demo_viewer";
+
+/**
+ * Thrown when the backend cannot be reached at all (network failure or our
+ * own request timeout) as opposed to a real HTTP error response. Render's
+ * free tier can take up to ~60s to wake a sleeping instance, so this is
+ * treated as "still waking up," not "broken" - see StateViews.ErrorState.
+ */
+export class BackendUnavailableError extends Error {
+  constructor() {
+    super("Waking demo backend. This may take up to 60 seconds on the free hosting tier.");
+    this.name = "BackendUnavailableError";
+  }
+}
+
+export function isBackendUnavailable(error: unknown): boolean {
+  return error instanceof BackendUnavailableError;
+}
 
 export function getAuthToken(): string | null {
   return typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
@@ -29,27 +50,66 @@ export function clearAuthToken(): void {
   if (typeof window !== "undefined") window.localStorage.removeItem(TOKEN_KEY);
 }
 
+/**
+ * FastAPI error bodies aren't always a plain string: validation failures
+ * (422) send `detail` as an array of {loc, msg, type} objects. Stringifying
+ * that directly (or handing it to `new Error()`) produces "[object Object]"
+ * in the UI, so every shape is normalized to readable text here.
+ */
+function formatErrorDetail(detail: unknown): string {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          const entry = item as { loc?: unknown[]; msg?: string };
+          const field = Array.isArray(entry.loc) ? entry.loc.filter((part) => part !== "body").join(".") : "";
+          return field ? `${field}: ${entry.msg}` : String(entry.msg ?? "");
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (typeof detail === "object" && "msg" in (detail as Record<string, unknown>)) {
+    return String((detail as { msg?: unknown }).msg ?? "");
+  }
+  return "";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {})
-    },
-    cache: "no-store"
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {})
+      },
+      cache: "no-store",
+      signal: controller.signal
+    });
+  } catch {
+    throw new BackendUnavailableError();
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) {
     if (response.status === 401) clearAuthToken();
     const text = await response.text();
+    let payload: { detail?: unknown } | null = null;
     try {
-      const payload = JSON.parse(text) as { detail?: string };
-      throw new Error(payload.detail || `Request failed with ${response.status}`);
-    } catch (error) {
-      if (error instanceof Error && error.message !== "Unexpected end of JSON input") throw error;
+      payload = JSON.parse(text) as { detail?: unknown };
+    } catch {
       throw new Error(text || `Request failed with ${response.status}`);
     }
+    throw new Error(formatErrorDetail(payload?.detail) || `Request failed with ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
@@ -61,6 +121,7 @@ export const api = {
       body: JSON.stringify({ email, password })
     }),
   me: () => request<User>("/api/auth/me"),
+  startDemoSession: () => request<AuthResponse>("/api/auth/demo-session", { method: "POST" }),
   systemStatus: () => request<SystemStatus>("/api/system/status"),
   campaigns: () => request<CampaignSummary[]>("/api/campaigns"),
   campaign: (id: number) => request<CampaignDetail>(`/api/campaigns/${id}`),
@@ -76,7 +137,7 @@ export const api = {
       body: JSON.stringify({ creative_id: creativeId, vast_url: vastUrl })
     }),
   clientSummary: (campaignId: number, diagnosis?: string) =>
-    request<{ campaign_id: number; summary: string; omitted_internal_details: string[] }>("/api/agent/generate-client-summary", {
+    request<ClientSummaryResponse>("/api/agent/generate-client-summary", {
       method: "POST",
       body: JSON.stringify({ campaign_id: campaignId, diagnosis })
     }),

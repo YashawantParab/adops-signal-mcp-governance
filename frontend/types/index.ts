@@ -169,6 +169,12 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface ClientSummaryResponse {
+  campaign_id: number;
+  summary: string;
+  omitted_internal_details: string[];
+}
+
 export interface VastValidationResponse {
   valid: boolean;
   creative_id?: number | null;
@@ -181,7 +187,7 @@ export interface User {
   id: number;
   email: string;
   full_name: string;
-  role: "admin" | "adops_manager" | "product_manager" | "viewer";
+  role: "admin" | "adops_manager" | "product_manager" | "viewer" | "demo_viewer";
 }
 
 export interface AuthResponse {

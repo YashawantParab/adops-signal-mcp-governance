@@ -19,6 +19,12 @@ from app.models import User
 
 bearer = HTTPBearer(auto_error=False)
 
+DEMO_VIEWER_ROLE = "demo_viewer"
+DEMO_VIEWER_SUBJECT = "demo-viewer"
+DEMO_VIEWER_EMAIL = "demo-viewer@adops-signal.local"
+DEMO_VIEWER_NAME = "Public Demo Viewer"
+DEMO_SESSION_MINUTES = 60
+
 
 def hash_password(password: str, salt: bytes | None = None) -> str:
     salt = salt or os.urandom(16)
@@ -56,6 +62,42 @@ def create_access_token(user: User) -> tuple[str, int]:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm), int(expires.total_seconds())
 
 
+def create_demo_access_token() -> tuple[str, int]:
+    """Issue a token for the public, read-only portfolio demo.
+
+    Deliberately not backed by a database row: the JWT carries the
+    demo_viewer role directly, and get_current_user() recognizes it without a
+    lookup. require_roles() already excludes demo_viewer from every
+    mutation-gated endpoint, and the agent layer skips audit/recommendation
+    writes for this role - see api/agent.py.
+    """
+    settings = get_settings()
+    expires = timedelta(minutes=DEMO_SESSION_MINUTES)
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": DEMO_VIEWER_SUBJECT,
+        "email": DEMO_VIEWER_EMAIL,
+        "role": DEMO_VIEWER_ROLE,
+        "demo": True,
+        "iat": now,
+        "exp": now + expires,
+        "iss": "adops-signal",
+        "aud": "adops-signal-web",
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm), int(expires.total_seconds())
+
+
+def build_demo_viewer() -> User:
+    return User(
+        id=0,
+        email=DEMO_VIEWER_EMAIL,
+        full_name=DEMO_VIEWER_NAME,
+        password_hash="",
+        role=DEMO_VIEWER_ROLE,
+        is_active=True,
+    )
+
+
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
     user = db.execute(select(User).where(User.email == email.lower().strip())).scalar_one_or_none()
     if not user or not user.is_active or not verify_password(password, user.password_hash):
@@ -83,8 +125,13 @@ def get_current_user(
             audience="adops-signal-web",
             issuer="adops-signal",
         )
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired access token") from exc
+    if payload.get("sub") == DEMO_VIEWER_SUBJECT and payload.get("role") == DEMO_VIEWER_ROLE:
+        return build_demo_viewer()
+    try:
         user_id = int(payload["sub"])
-    except (jwt.InvalidTokenError, KeyError, ValueError) as exc:
+    except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired access token") from exc
     user = db.get(User, user_id)
     if not user or not user.is_active:

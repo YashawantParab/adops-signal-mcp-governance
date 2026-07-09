@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Activity, Bot, ClipboardCheck, History, LayoutDashboard, LogOut, Menu, TrendingUp, Tv, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { api } from "@/lib/api";
+import { api, DEMO_VIEWER_ROLE } from "@/lib/api";
 import type { SystemStatus } from "@/types";
 
 import { useAuth } from "./AuthProvider";
@@ -15,7 +15,12 @@ const nav = [
   { href: "/agent", label: "Investigations", icon: Bot },
   { href: "/vast-validator", label: "VAST Validator", icon: Tv },
   { href: "/recommendations", label: "Decision Queue", icon: ClipboardCheck },
-  { href: "/audit-logs", label: "Governance Record", icon: History, roles: ["admin", "adops_manager", "product_manager"] },
+  {
+    href: "/audit-logs",
+    label: "Governance Record",
+    icon: History,
+    roles: ["admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE]
+  },
   { href: "/impact", label: "Business Impact", icon: TrendingUp }
 ];
 
@@ -24,7 +29,10 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
-  const visibleNav = nav.filter((item) => !item.roles || item.roles.includes(user.role));
+  // AppShell only renders the sidebar once a session exists, so user is
+  // always set here in practice - the fallbacks below just keep the type
+  // checker honest without changing behavior.
+  const visibleNav = nav.filter((item) => !item.roles || item.roles.includes(user?.role ?? ""));
 
   useEffect(() => setMobileOpen(false), [pathname]);
   useEffect(() => {
@@ -37,9 +45,11 @@ export function Sidebar() {
         <div className="flex h-10 w-10 items-center justify-center rounded-md bg-ink text-white">
           <Activity size={20} aria-hidden="true" />
         </div>
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">AdOps</p>
-          <h1 className="text-lg font-semibold leading-tight">Signal</h1>
+        <div className="min-w-0">
+          <h1 className="whitespace-nowrap text-lg font-semibold leading-tight text-ink">
+            SignalOps <span className="text-accent">AI</span>
+          </h1>
+          <p className="text-xs font-medium text-slate-400">Delivery intelligence</p>
         </div>
         <button
           type="button"
@@ -72,8 +82,8 @@ export function Sidebar() {
         })}
         <div className="mt-3 flex items-center justify-between border-t border-line px-3 pt-3 md:hidden">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">{user.full_name}</p>
-            <p className="truncate text-xs capitalize text-slate-500">{user.role.replace("_", " ")}</p>
+            <p className="truncate text-sm font-semibold text-ink">{user?.full_name}</p>
+            <p className="truncate text-xs capitalize text-slate-500">{user?.role.replace("_", " ")}</p>
           </div>
           <button
             type="button"
@@ -100,8 +110,8 @@ export function Sidebar() {
         </div>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">{user.full_name}</p>
-            <p className="truncate text-xs capitalize text-slate-500">{user.role.replace("_", " ")}</p>
+            <p className="truncate text-sm font-semibold text-ink">{user?.full_name}</p>
+            <p className="truncate text-xs capitalize text-slate-500">{user?.role.replace("_", " ")}</p>
           </div>
           <button
             type="button"

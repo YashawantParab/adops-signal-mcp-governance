@@ -20,18 +20,22 @@ export default function VastValidatorPage() {
   const [result, setResult] = useState<VastValidationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => {
+  function loadCampaigns() {
+    setLoading(true);
+    setError(null);
     api
       .campaigns()
       .then((items) => {
         setCampaigns(items);
         setCampaignId(items[0]?.id || "");
       })
-      .catch((err: Error) => setError(err.message))
+      .catch(setError)
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(loadCampaigns, []);
 
   useEffect(() => {
     if (!campaignId) return;
@@ -42,7 +46,7 @@ export default function VastValidatorPage() {
         setCreativeId(detail.creatives[0]?.id || "");
         setResult(null);
       })
-      .catch((err: Error) => setError(err.message));
+      .catch(setError);
   }, [campaignId]);
 
   const selectedCreative = useMemo(() => campaign?.creatives.find((creative) => creative.id === creativeId), [campaign, creativeId]);
@@ -54,7 +58,7 @@ export default function VastValidatorPage() {
       const response = await api.validateVast(creativeId ? Number(creativeId) : undefined, vastUrl || undefined);
       setResult(response);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Validation failed");
+      setError(err);
     } finally {
       setValidating(false);
     }
@@ -66,7 +70,7 @@ export default function VastValidatorPage() {
     <>
       <PageHeader title="VAST Validator" subtitle="Review creative approval state and observed VAST runtime errors before diagnosing delivery impact." />
       <WorkflowBar currentStep={2} />
-      {error ? <div className="mb-5"><ErrorState message={error} /></div> : null}
+      {error ? <div className="mb-5"><ErrorState error={error} onRetry={campaigns.length ? undefined : loadCampaigns} /></div> : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         <section className="panel rounded-md p-5">

@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-AdOps Signal is evaluated against 15 deterministic campaign troubleshooting cases spanning pacing, narrow targeting, creative rejection, VAST errors, bid floors, frequency caps, delayed launch, device mismatch, and shared inventory pressure.
+SignalOps AI is evaluated against 15 deterministic campaign troubleshooting cases spanning pacing, narrow targeting, creative rejection, VAST errors, bid floors, frequency caps, delayed launch, device mismatch, and shared inventory pressure.
 
 | Metric | Current result | Release floor |
 |---|---:|---:|

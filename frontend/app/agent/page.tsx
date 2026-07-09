@@ -6,11 +6,12 @@ import { ArrowRight, Bot, ClipboardCheck, FileText, History } from "lucide-react
 import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { AgentResult } from "@/components/AgentResult";
+import { ClientSafeBrief } from "@/components/ClientSafeBrief";
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState, LoadingState } from "@/components/StateViews";
 import { WorkflowBar } from "@/components/WorkflowBar";
 import { api, formatPercent } from "@/lib/api";
-import type { AgentDiagnosis, CampaignSummary } from "@/types";
+import type { AgentDiagnosis, CampaignSummary, ClientSummaryResponse } from "@/types";
 
 const queryPresets = [
   "Why is this campaign underdelivering?",
@@ -26,13 +27,15 @@ function AgentWorkspace() {
   const [campaignId, setCampaignId] = useState<number | "">("");
   const [query, setQuery] = useState("Why is this campaign underdelivering?");
   const [result, setResult] = useState<AgentDiagnosis | null>(null);
-  const [clientSummary, setClientSummary] = useState<string | null>(null);
+  const [clientSummary, setClientSummary] = useState<ClientSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => {
+  function loadCampaigns() {
+    setLoading(true);
+    setError(null);
     api
       .campaigns()
       .then((items) => {
@@ -40,9 +43,11 @@ function AgentWorkspace() {
         const selected = items.some((item) => item.id === initialCampaignId) ? initialCampaignId : items[0]?.id;
         setCampaignId(selected || "");
       })
-      .catch((err: Error) => setError(err.message))
+      .catch(setError)
       .finally(() => setLoading(false));
-  }, [initialCampaignId]);
+  }
+
+  useEffect(loadCampaigns, [initialCampaignId]);
 
   const selectedCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === campaignId), [campaignId, campaigns]);
 
@@ -56,7 +61,7 @@ function AgentWorkspace() {
       setResult(diagnosis);
       setClientSummary(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Diagnosis failed");
+      setError(err);
     } finally {
       setRunning(false);
     }
@@ -68,9 +73,9 @@ function AgentWorkspace() {
     setError(null);
     try {
       const response = await api.clientSummary(result.campaign_id, result.diagnosis);
-      setClientSummary(response.summary);
+      setClientSummary(response);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Client summary failed");
+      setError(err);
     } finally {
       setGeneratingSummary(false);
     }
@@ -85,7 +90,7 @@ function AgentWorkspace() {
         subtitle="Review bounded platform evidence, establish the likely root cause, and prepare an operator-controlled resolution."
       />
       <WorkflowBar currentStep={2} />
-      {error ? <div className="mb-5"><ErrorState message={error} /></div> : null}
+      {error ? <div className="mb-5"><ErrorState error={error} onRetry={campaigns.length ? undefined : loadCampaigns} /></div> : null}
 
       <form onSubmit={submit} className="panel mb-6 rounded-md p-5">
         <div className="grid gap-4 lg:grid-cols-[300px_1fr_auto] lg:items-end">
@@ -194,9 +199,8 @@ function AgentWorkspace() {
               </div>
             </div>
             {clientSummary ? (
-              <div className="mt-5 border-l-4 border-accent bg-emerald-50 p-4">
-                <p className="text-xs font-semibold uppercase text-emerald-800">Client-safe brief</p>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{clientSummary}</p>
+              <div className="mt-5">
+                <ClientSafeBrief summary={clientSummary.summary} omittedInternalDetails={clientSummary.omitted_internal_details} />
               </div>
             ) : null}
           </section>

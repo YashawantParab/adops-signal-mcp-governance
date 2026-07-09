@@ -6,11 +6,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent import tools
 from app.agent.llm_reasoner import LLMReasoner, PROMPT_VERSION
-from app.models import AgentAuditLog, Campaign
+from app.models import AgentAuditLog, Campaign, Recommendation
 from app.observability import AGENT_LATENCY, AGENT_RUNS
 from app.schemas import AgentDiagnoseResponse, EvidenceItem, PlaybookSource, RecommendationRead, RootCause
 from app.services.recommendation_service import attach_reviewer_identity, create_recommendation
@@ -87,6 +88,7 @@ class AdOpsSignalAgent:
         *,
         user_id: int | None = None,
         request_id: str | None = None,
+        persist: bool = True,
     ) -> AgentDiagnoseResponse:
         started = time.perf_counter()
         query_intent = self._classify_query(query)
@@ -158,7 +160,7 @@ class AdOpsSignalAgent:
             confidence = self._confidence(causes, payload)
             human_approval_required = any(cause.recommendation_title != "Continue monitoring" for cause in causes)
 
-        recommendations = self._upsert_recommendations(db, campaign.id, causes)
+        recommendations = self._resolve_recommendations(db, campaign.id, causes, persist=persist)
         latency_ms = round((time.perf_counter() - started) * 1000)
         rag_docs = payload.get("rag_documentation_lookup", {}).get("docs", [])
         response = AgentDiagnoseResponse(
@@ -197,16 +199,17 @@ class AdOpsSignalAgent:
                 for doc in rag_docs
             ],
         )
-        self._write_audit(
-            db,
-            campaign.id,
-            query,
-            response,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            user_id=user_id,
-            request_id=request_id,
-        )
+        if persist:
+            self._write_audit(
+                db,
+                campaign.id,
+                query,
+                response,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                user_id=user_id,
+                request_id=request_id,
+            )
         AGENT_RUNS.labels(execution_mode, "success").inc()
         AGENT_LATENCY.labels(execution_mode).observe(latency_ms / 1000)
         return response
@@ -219,6 +222,7 @@ class AdOpsSignalAgent:
         *,
         user_id: int | None = None,
         request_id: str | None = None,
+        persist: bool = True,
     ) -> str:
         response = (
             self.diagnose(
@@ -227,6 +231,7 @@ class AdOpsSignalAgent:
                 "Generate a client-safe explanation",
                 user_id=user_id,
                 request_id=request_id,
+                persist=persist,
             )
             if diagnosis is None
             else None
@@ -611,21 +616,49 @@ class AdOpsSignalAgent:
             base += 0.08
         return round(min(base, 0.94), 2)
 
-    def _upsert_recommendations(self, db: Session, campaign_id: int, causes: list[RankedCause]):
-        recommendations = [
-            create_recommendation(
-                db,
-                campaign_id=campaign_id,
-                title=cause.recommendation_title,
-                description=cause.recommendation_description,
-                expected_impact=cause.expected_impact,
-                risk_level=cause.risk_level,
+    def _resolve_recommendations(self, db: Session, campaign_id: int, causes: list[RankedCause], *, persist: bool):
+        if persist:
+            recommendations = [
+                create_recommendation(
+                    db,
+                    campaign_id=campaign_id,
+                    title=cause.recommendation_title,
+                    description=cause.recommendation_description,
+                    expected_impact=cause.expected_impact,
+                    risk_level=cause.risk_level,
+                )
+                for cause in causes[:3]
+            ]
+            db.commit()
+            for recommendation in recommendations:
+                db.refresh(recommendation)
+            return attach_reviewer_identity(db, recommendations)
+
+        # Read-only demo path: never create or modify a Recommendation row.
+        # Reuse the existing seeded/decided row when one already matches this
+        # campaign + recommendation title, otherwise show a transient,
+        # unpersisted preview (id=0, never added to the session).
+        recommendations = []
+        for cause in causes[:3]:
+            existing = db.execute(
+                select(Recommendation)
+                .where(Recommendation.campaign_id == campaign_id, Recommendation.title == cause.recommendation_title)
+                .order_by(Recommendation.id.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            recommendations.append(
+                existing
+                or Recommendation(
+                    id=0,
+                    campaign_id=campaign_id,
+                    title=cause.recommendation_title,
+                    description=cause.recommendation_description,
+                    expected_impact=cause.expected_impact,
+                    risk_level=cause.risk_level,
+                    status="pending",
+                    created_at=utc_now(),
+                )
             )
-            for cause in causes[:3]
-        ]
-        db.commit()
-        for recommendation in recommendations:
-            db.refresh(recommendation)
         return attach_reviewer_identity(db, recommendations)
 
     def _write_audit(

@@ -45,16 +45,16 @@ def seeded_session(tmp_path):
 
 def test_seed_counts_are_deterministic(tmp_path):
     _, data = seeded_session(tmp_path)
-    assert len(data["campaigns"]) == 5
-    assert len(data["advertisers"]) == 4
-    assert len(data["publishers"]) == 3
-    assert len(data["inventory_segments"]) == 10
-    assert len(data["creatives"]) == 20
-    assert len(data["ad_requests"]) == 1000
-    assert len(data["impressions"]) == 500
-    assert len(data["bid_responses"]) == 300
+    assert len(data["campaigns"]) == 7
+    assert len(data["advertisers"]) == 7
+    assert len(data["publishers"]) == 6
+    assert len(data["inventory_segments"]) == 14
+    assert len(data["creatives"]) == 28
+    assert len(data["ad_requests"]) == 1440
+    assert len(data["impressions"]) == 725
+    assert len(data["bid_responses"]) == 740
     assert len(data["vast_validation_errors"]) == 20
-    assert len(data["pacing_snapshots"]) == 30
+    assert len(data["pacing_snapshots"]) == 42
 
 
 def test_agent_detects_campaign_1045_delivery_blockers(tmp_path):

@@ -2,7 +2,7 @@
 
 ## Strategic Position
 
-AdOps Signal is an operational intelligence layer for CTV and addressable TV platforms. It does not replace the ad server, SSP, or reporting stack. It converts fragmented platform signals into an evidence-backed decision workflow.
+SignalOps AI is an operational intelligence layer for CTV and addressable TV platforms. It does not replace the ad server, SSP, or reporting stack. It converts fragmented platform signals into an evidence-backed decision workflow.
 
 ## Why This Wedge
 

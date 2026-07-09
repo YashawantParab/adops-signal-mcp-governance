@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AgentResult } from "@/components/AgentResult";
+import { ClientSafeBrief } from "@/components/ClientSafeBrief";
 import { PageHeader } from "@/components/PageHeader";
 import { PacingChart } from "@/components/PacingChart";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -13,25 +14,29 @@ import { ErrorState, LoadingState } from "@/components/StateViews";
 import { StatCard } from "@/components/StatCard";
 import { WorkflowBar } from "@/components/WorkflowBar";
 import { api, formatCurrency, formatNumber, formatPercent } from "@/lib/api";
-import type { AgentDiagnosis, CampaignDetail } from "@/types";
+import type { AgentDiagnosis, CampaignDetail, ClientSummaryResponse } from "@/types";
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const campaignId = Number(params.id);
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [diagnosis, setDiagnosis] = useState<AgentDiagnosis | null>(null);
-  const [clientSummary, setClientSummary] = useState<string | null>(null);
+  const [clientSummary, setClientSummary] = useState<ClientSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [diagnosing, setDiagnosing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => {
+  function loadCampaign() {
+    setLoading(true);
+    setError(null);
     api
       .campaign(campaignId)
       .then(setCampaign)
-      .catch((err: Error) => setError(err.message))
+      .catch(setError)
       .finally(() => setLoading(false));
-  }, [campaignId]);
+  }
+
+  useEffect(loadCampaign, [campaignId]);
 
   async function runDiagnosis() {
     setDiagnosing(true);
@@ -40,7 +45,7 @@ export default function CampaignDetailPage() {
       const result = await api.diagnose(campaignId, "Why is this campaign underdelivering?");
       setDiagnosis(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Diagnosis failed");
+      setError(err);
     } finally {
       setDiagnosing(false);
     }
@@ -49,11 +54,11 @@ export default function CampaignDetailPage() {
   async function generateSummary() {
     if (!diagnosis) return;
     const response = await api.clientSummary(campaignId, diagnosis.diagnosis);
-    setClientSummary(response.summary);
+    setClientSummary(response);
   }
 
   if (loading) return <LoadingState label="Loading campaign detail" />;
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState error={error} onRetry={loadCampaign} />;
   if (!campaign) return <ErrorState message="Campaign not found" />;
 
   return (
@@ -194,7 +199,11 @@ export default function CampaignDetailPage() {
                 Generate
               </button>
             </div>
-            {clientSummary ? <p className="mt-3 text-sm leading-6 text-slate-700">{clientSummary}</p> : null}
+            {clientSummary ? (
+              <div className="mt-3">
+                <ClientSafeBrief summary={clientSummary.summary} omittedInternalDetails={clientSummary.omitted_internal_details} />
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

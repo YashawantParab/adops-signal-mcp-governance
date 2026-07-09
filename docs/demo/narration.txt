@@ -1,4 +1,4 @@
-CTV underdelivery is a cross-system operating problem. Ad operations teams move between pacing, targeting, inventory, creative validation, and auction data while a client waits for an answer. AdOps Signal turns those fragmented signals into an accountable resolution workflow.
+CTV underdelivery is a cross-system operating problem. Ad operations teams move between pacing, targeting, inventory, creative validation, and auction data while a client waits for an answer. SignalOps AI turns those fragmented signals into an accountable resolution workflow.
 
 The operations queue ranks campaigns by delivery risk. It exposes pacing, delivery gap, booked media under review, the leading issue, and the next operator action before an escalation begins.
 

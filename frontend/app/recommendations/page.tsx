@@ -10,14 +10,16 @@ import { PageHeader } from "@/components/PageHeader";
 import { RiskBadge } from "@/components/RiskBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StateViews";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api, formatDateTime, formatReviewer } from "@/lib/api";
+import { api, DEMO_VIEWER_ROLE, formatDateTime, formatReviewer } from "@/lib/api";
 import type { Recommendation } from "@/types";
 
 const DECISION_ROLES = ["admin", "adops_manager"];
 
 function RecommendationWorkspace() {
   const { user } = useAuth();
-  const canDecide = DECISION_ROLES.includes(user.role);
+  // AppShell only mounts this page once a session exists, so user is always
+  // set here in practice - this fallback just keeps the type checker honest.
+  const canDecide = !!user && DECISION_ROLES.includes(user.role);
   const searchParams = useSearchParams();
   const initialCampaignId = searchParams.get("campaignId") ?? "All";
   const [items, setItems] = useState<Recommendation[]>([]);
@@ -26,16 +28,20 @@ function RecommendationWorkspace() {
   const [campaignFilter, setCampaignFilter] = useState(initialCampaignId);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [reasons, setReasons] = useState<Record<number, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(null);
     api
       .recommendations()
       .then(setItems)
-      .catch((err: Error) => setError(err.message))
+      .catch(setError)
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(load, []);
 
   const campaignIds = useMemo(() => Array.from(new Set(items.map((item) => item.campaign_id))).sort(), [items]);
   const visibleItems = useMemo(
@@ -64,7 +70,7 @@ function RecommendationWorkspace() {
       setItems((current) => current.map((item) => (item.id === id ? updated : item)));
       setNotice(`Recommendation ${id} was ${updated.status}. The rationale is now part of the governance record.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Update failed");
+      setError(err);
     } finally {
       setUpdatingId(null);
     }
@@ -81,7 +87,7 @@ function RecommendationWorkspace() {
       <WorkflowBar currentStep={3} />
       {error ? (
         <div className="mb-5">
-          <ErrorState message={error} />
+          <ErrorState error={error} onRetry={items.length ? undefined : load} />
         </div>
       ) : null}
       {notice ? (
@@ -191,10 +197,20 @@ function RecommendationWorkspace() {
                 ) : item.status === "pending" ? (
                   <div className="border-l-0 border-line bg-slate-50 p-4 xl:border-l">
                     <p className="text-xs font-semibold uppercase text-slate-500">Awaiting authorized review</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Approving or rejecting requires the AdOps Manager role. Your role ({user.role.replace("_", " ")}) has
-                      read-only access to this decision.
-                    </p>
+                    {user?.role === DEMO_VIEWER_ROLE ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        Public demo is read-only.{" "}
+                        <Link href="/" className="font-semibold text-accent hover:text-teal-700">
+                          Use the full demo login
+                        </Link>{" "}
+                        for approval actions.
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        Approving or rejecting requires the AdOps Manager role. Your role ({(user?.role ?? "unknown").replace("_", " ")}) has
+                        read-only access to this decision.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="border-l-0 border-line bg-slate-50 p-4 xl:border-l">

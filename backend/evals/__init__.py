@@ -1,1 +1,1 @@
-"""Golden evaluation suite for AdOps Signal."""
+"""Golden evaluation suite for SignalOps AI."""

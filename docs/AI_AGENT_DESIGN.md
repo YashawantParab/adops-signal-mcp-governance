@@ -2,7 +2,7 @@
 
 ## Product Decision
 
-AdOps Signal uses an LLM for diagnosis and recommendation reasoning, but it does not give the model unrestricted database access. Bounded tools collect campaign evidence first; RAG retrieves operating guidance; the model returns a strict schema; a validator rejects unsupported citations.
+SignalOps AI uses an LLM for diagnosis and recommendation reasoning, but it does not give the model unrestricted database access. Bounded tools collect campaign evidence first; RAG retrieves operating guidance; the model returns a strict schema; a validator rejects unsupported citations.
 
 The orchestrator first classifies the operator question into a focused investigation lens: comprehensive, targeting/inventory, creative/VAST, bid competitiveness, frequency cap, launch timing, shared inventory pressure, goal feasibility, client communication, or next action. Each lens has its own bounded tool plan. This prevents a targeting question from returning an unrelated full-campaign answer and gives the LLM a smaller, more relevant evidence context.
 

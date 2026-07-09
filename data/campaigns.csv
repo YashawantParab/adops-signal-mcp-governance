@@ -2,5 +2,7 @@ id,advertiser_id,campaign_name,campaign_type,start_date,end_date,goal_impression
 1045,201,RheinAuto CTV Launch,CTV Awareness,2026-06-10,2026-06-27,1000000,238000,95000,active,"[""DE"", ""AT""]","[""CTV""]","[""Sports""]",2,15.0,Standard
 1046,202,NordicStream Family Addressable,Addressable TV,2026-06-13,2026-06-30,650000,96000,62000,active,"[""AT""]","[""HbbTV""]","[""Entertainment""]",1,14.5,Standard
 1047,203,LuxeHome Premium Video,Online Video,2026-06-01,2026-06-28,800000,515000,58000,active,"[""DE""]","[""Desktop"", ""Mobile""]","[""Lifestyle"", ""Finance""]",4,10.5,Low
-1048,204,GameHub Summer Quest,CTV Awareness,2026-06-18,2026-06-26,450000,54000,44000,active,"[""SE"", ""NO""]","[""CTV""]","[""Gaming"", ""Entertainment""]",3,13.0,Standard
-1049,201,RheinAuto Sponsorship Takeover,CTV Sponsorship,2026-06-01,2026-06-25,1200000,1050000,160000,active,"[""DE""]","[""CTV"", ""HbbTV""]","[""Sports"", ""Entertainment"", ""News""]",6,19.0,High
+1048,204,GameHub Studios Nordic CTV Launch,CTV Launch,2026-06-18,2026-06-26,450000,54000,44000,active,"[""SE"", ""NO""]","[""CTV""]","[""Gaming"", ""Entertainment""]",3,13.0,Standard
+1049,206,Solstice Mobile 5G Flagship Sponsorship,CTV Sponsorship,2026-06-01,2026-06-25,1200000,1050000,160000,active,"[""DE""]","[""CTV"", ""HbbTV""]","[""Sports"", ""Entertainment"", ""News""]",6,19.0,High
+1050,205,Meridian Capital Partners Wealth Management Premium Video,Premium Video,2026-06-05,2026-06-30,900000,430000,110000,active,"[""DE"", ""NL""]","[""Desktop"", ""CTV""]","[""Finance"", ""Business News""]",3,20.0,Standard
+1051,207,Vantage Travel Group Getaway Season Launch,CTV Awareness,2026-06-16,2026-07-05,550000,140000,72000,active,"[""UK""]","[""CTV""]","[""Travel"", ""Sports""]",3,15.5,Standard

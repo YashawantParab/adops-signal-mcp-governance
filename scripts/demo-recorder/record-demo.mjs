@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Records a browser walkthrough of the AdOps Signal demo workflow and saves it as
+ * Records a browser walkthrough of the SignalOps AI demo workflow and saves it as
  * docs/demo/adops-signal-demo.webm.
  *
  * This script only drives the existing app through the browser (Playwright). It does not

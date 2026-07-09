@@ -6,7 +6,7 @@ These low-fidelity wireframes show the information architecture and decision flo
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ AdOps Signal                    AI mode: LLM + RAG       Alex / AdOps   │
+│ SignalOps AI                    AI mode: LLM + RAG       Alex / AdOps   │
 ├───────────────┬──────────────────────────────────────────────────────────┤
 │ Operations    │ Delivery Operations                                      │
 │ Investigations│ [5 monitored] [3 high risk] [2.1m gap] [EUR 201k risk] │

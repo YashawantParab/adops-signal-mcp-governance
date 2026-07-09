@@ -18,13 +18,23 @@ from app.schemas import (
     VastValidationRequest,
     VastValidationResponse,
 )
+from app.rate_limit import check_rate_limit
 from app.services.campaign_service import get_campaign_or_none
 from app.services.json_fields import parse_json
 from app.services.vast_service import validate_vast
-from app.security import get_current_user, require_roles
+from app.security import DEMO_VIEWER_ROLE, get_current_user, require_roles
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 agent = AdOpsSignalAgent()
+DEMO_DIAGNOSE_RATE_LIMIT_PER_MINUTE = 10
+
+
+def _enforce_demo_rate_limit(user: User, request: Request) -> None:
+    if user.role != DEMO_VIEWER_ROLE:
+        return
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"demo-diagnose:{client_ip}", DEMO_DIAGNOSE_RATE_LIMIT_PER_MINUTE):
+        raise HTTPException(status_code=429, detail="Public demo diagnosis rate limit reached. Try again shortly.")
 
 
 @router.post("/diagnose", response_model=AgentDiagnoseResponse)
@@ -37,12 +47,14 @@ def diagnose(
     campaign = get_campaign_or_none(db, payload.campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+    _enforce_demo_rate_limit(user, request)
     return agent.diagnose(
         db,
         campaign,
         payload.query,
         user_id=user.id,
         request_id=request.headers.get("x-request-id"),
+        persist=user.role != DEMO_VIEWER_ROLE,
     )
 
 
@@ -67,6 +79,7 @@ def generate_client_summary(
     campaign = get_campaign_or_none(db, payload.campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+    _enforce_demo_rate_limit(user, request)
     return ClientSummaryResponse(
         campaign_id=campaign.id,
         summary=agent.client_safe_summary(
@@ -75,6 +88,7 @@ def generate_client_summary(
             payload.diagnosis,
             user_id=user.id,
             request_id=request.headers.get("x-request-id"),
+            persist=user.role != DEMO_VIEWER_ROLE,
         ),
         omitted_internal_details=["bid loss reason details", "publisher floor pricing", "raw validation trace"],
     )
@@ -93,7 +107,7 @@ def list_agent_tools(_: User = Depends(get_current_user)) -> list[ToolDescriptor
 @router.get("/audit-logs", response_model=list[AuditLogRead])
 def audit_logs(
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("admin", "adops_manager", "product_manager")),
+    _: User = Depends(require_roles("admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE)),
 ) -> list[AuditLogRead]:
     logs = list(db.execute(select(AgentAuditLog).order_by(AgentAuditLog.created_at.desc()).limit(100)).scalars())
     return [

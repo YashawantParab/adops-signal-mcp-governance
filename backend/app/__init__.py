@@ -1,1 +1,1 @@
-"""AdOps Signal backend package."""
+"""SignalOps AI backend package."""

@@ -15,17 +15,21 @@ import type { CampaignSummary } from "@/types";
 export default function DashboardPage() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [query, setQuery] = useState("");
   const [riskFilter, setRiskFilter] = useState("All");
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(null);
     api
       .campaigns()
       .then(setCampaigns)
-      .catch((err: Error) => setError(err.message))
+      .catch(setError)
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(load, []);
 
   const stats = useMemo(() => {
     const highRisk = campaigns.filter((campaign) => campaign.risk_level === "High").length;
@@ -59,7 +63,7 @@ export default function DashboardPage() {
   const priorityCampaign = visibleCampaigns.find((campaign) => campaign.risk_level === "High") ?? visibleCampaigns[0];
 
   if (loading) return <LoadingState label="Loading campaign health" />;
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState error={error} onRetry={load} />;
 
   return (
     <>

@@ -1,10 +1,10 @@
-# Product Requirements: AdOps Signal
+# Product Requirements: SignalOps AI
 
 ## Product Thesis
 
 CTV underdelivery is not primarily a “find the metric” problem. It is a cross-system reasoning problem: operators must combine pacing, campaign configuration, eligible supply, creative quality, auction economics, and organizational approval before they can act.
 
-AdOps Signal should reduce time to an evidence-backed decision while preserving operator accountability.
+SignalOps AI should reduce time to an evidence-backed decision while preserving operator accountability.
 
 ## Users And Jobs
 

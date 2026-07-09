@@ -65,7 +65,8 @@ export function AgentResult({ result }: { result: AgentDiagnosis }) {
               <RiskBadge value={result.risk_level} />
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              {result.execution_mode === "llm_rag" ? result.model_name : "Resilient fallback"} · {result.latency_ms} ms
+              {result.execution_mode === "llm_rag" ? `LLM + RAG · ${result.model_name}` : "Grounded fallback (deterministic, no LLM call)"} ·{" "}
+              {result.latency_ms} ms
             </p>
           </div>
         </div>
@@ -152,7 +153,7 @@ export function AgentResult({ result }: { result: AgentDiagnosis }) {
             <p className="mt-1 text-sm text-slate-500">{result.prompt_version}</p>
           </div>
           <span className="rounded-md border border-line bg-slate-50 px-2 py-1 text-xs font-semibold uppercase text-slate-600">
-            {result.execution_mode.replace("_", " + ")}
+            {result.execution_mode === "llm_rag" ? "LLM + RAG" : "Grounded fallback"}
           </span>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">

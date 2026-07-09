@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, LockKeyhole } from "lucide-react";
+import { Activity, ArrowRight, Eye, LockKeyhole } from "lucide-react";
 import { useState } from "react";
 
 interface Props {
@@ -33,10 +33,9 @@ export function LoginScreen({ onLogin }: Props) {
           <div className="flex h-11 w-11 items-center justify-center rounded-md bg-white text-ink">
             <Activity size={21} aria-hidden="true" />
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase text-emerald-300">AdOps</p>
-            <p className="text-xl font-semibold">Signal</p>
-          </div>
+          <p className="whitespace-nowrap text-xl font-semibold">
+            SignalOps <span className="text-emerald-300">AI</span>
+          </p>
         </div>
         <div className="max-w-xl">
           <p className="text-sm font-semibold text-emerald-300">CTV delivery operations</p>
@@ -57,7 +56,8 @@ export function LoginScreen({ onLogin }: Props) {
           </div>
           <h2 className="mt-5 text-2xl font-semibold">Open the operations workspace</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Demo credentials are prefilled for the AdOps Manager role.
+            Portfolio demo workspace. Demo credentials are prefilled - select Enter workspace to explore the full workflow,
+            including approvals and the governance record.
           </p>
           <label className="mt-6 block">
             <span className="text-sm font-medium text-slate-700">Email</span>
@@ -88,6 +88,24 @@ export function LoginScreen({ onLogin }: Props) {
             {loading ? "Signing in..." : "Enter workspace"}
             {!loading ? <ArrowRight className="ml-2" size={16} aria-hidden="true" /> : null}
           </button>
+          {/*
+            Plain anchor, not next/link: this is a hard navigation to /demo.
+            That guarantees a fresh page load - and therefore a fresh
+            AuthProvider bootstrap for the /demo route - regardless of any
+            client-side routing/auth-state bug. It is not a submit button
+            and carries no form/preventDefault behavior, so nothing can
+            block the click.
+          */}
+          <a
+            href="/demo"
+            className="focus-ring mt-4 inline-flex w-full items-center justify-center rounded-md border border-line px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Eye className="mr-2" size={16} aria-hidden="true" />
+            Open public demo
+          </a>
+          <p className="mt-3 text-center text-xs text-slate-400">
+            No sign-in required. Read-only sample data - dashboard, investigations, and governance record.
+          </p>
         </form>
       </section>
     </main>

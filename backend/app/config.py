@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "AdOps Signal"
+    app_name: str = "SignalOps AI"
     app_version: str = "1.0.0"
     environment: str = "local"
     database_url: str = "sqlite:///./adops_signal.db"

@@ -1,14 +1,37 @@
-# AdOps Signal
+# SignalOps AI
 
-### Evidence-grounded AI agent for CTV and addressable TV campaign troubleshooting
+### AI-powered campaign delivery intelligence workflow for AdTech operations teams
 
-AdOps Signal helps advertising operations teams move from **“this campaign is behind”** to an inspectable root cause and an approved recovery action. It combines bounded AdTech analytics tools, vector-retrieved operating playbooks, structured LLM reasoning, evidence validation, human approval, and an audit trail.
+SignalOps AI helps campaign operations teams detect delivery risk, diagnose root causes with campaign data and AdOps playbooks, generate client-safe explanations, route recommendations through human approval, and preserve governance records. It combines bounded AdTech analytics tools, vector-retrieved operating playbooks, structured LLM reasoning, evidence validation, human approval, and an audit trail — moving a team from **"this campaign is behind"** to an inspectable root cause and an approved recovery action.
 
-This is a working product case study, not a chat interface placed over hardcoded answers.
+This is a working product case study — an enterprise-style MVP and portfolio demo, not a chat interface placed over hardcoded answers, and not a claim of production-scale usage.
+
+> **Naming note:** the repository, Vercel project, Render service, and Neon database keep the historical technical name `adops-signal` to avoid breaking deployment URLs and existing infrastructure. The product itself is branded **SignalOps AI** everywhere a user or reviewer sees it (UI, docs, demo).
+
+**[Open the public demo (no sign-in)](https://adops-signal.vercel.app/demo)** · **[Full workflow login](https://adops-signal.vercel.app)** · [Backend readiness](https://adops-signal.onrender.com/ready) · [GitHub / local setup](#local-setup)
 
 [Watch the two-minute narrated demo](./docs/demo/adops-signal-2-minute-demo.mp4) · [Read the PRD](./docs/PRD.md) · [Explore the system diagrams](./docs/SYSTEM_DIAGRAMS.md) · [Review the evaluation](./docs/EVALUATION_REPORT.md)
 
 > **Demo mode:** The recorded demo intentionally runs without an API key and visibly reports `fallback`. Add `OPENAI_API_KEY` to activate structured `llm_rag` diagnosis. Both modes use the same evidence tools, provenance contract, approvals, and audit system.
+
+> **Cold start note:** the backend runs on Render's free tier, which can take up to ~60 seconds to wake from idle. The frontend detects this and shows a "waking up" retry state instead of a broken page — give the first request a moment.
+
+## Public Portfolio Demo
+
+- **Public demo (no sign-in):** [https://adops-signal.vercel.app/demo](https://adops-signal.vercel.app/demo)
+- **Full workflow login:** [https://adops-signal.vercel.app](https://adops-signal.vercel.app) (demo credentials in [Local Setup](#local-setup))
+
+`/demo` opens straight into the same dashboard as the full product, pre-authenticated as a read-only viewer against the seeded demo dataset. A persistent banner ("Public portfolio demo · sample data · read-only workspace") marks every page. From there, a visitor can browse the risk queue, open any campaign, run a real investigation - bounded tools, RAG playbook retrieval, and structured LLM-or-fallback reasoning, exactly the pipeline the full product uses - generate a client-safe brief, and read the Governance Record.
+
+What the public session cannot do: approve or reject a recommendation, or write anything to the shared demo database. Diagnoses run for real, but for this role the agent skips both the audit-log write and the recommendation upsert (see `persist` in `backend/app/agent/signal.py`), so anonymous traffic can never pollute the seed data the full-login walkthrough depends on. Clicking Approve/Reject shows "Public demo is read-only. Use the full demo login for approval actions." instead of a disabled button.
+
+### 90-second public demo click-through
+
+1. Open `/demo` - the dashboard loads directly, no login screen, read-only banner visible.
+2. Open the highest-risk campaign and run **Diagnose** - tools called, RAG playbook evidence, confidence, and execution mode (`llm_rag` or grounded fallback) are all real, not staged.
+3. Generate the **client-safe brief** and note the line stating what it omits and why.
+4. Open **Decision Queue** - approve/reject controls are replaced by a note pointing to the full login.
+5. Open **Governance Record** - the real audit history and human decisions from the full-login workflow are visible, read-only.
 
 ## The Product Problem
 
@@ -190,7 +213,7 @@ More detail:
 
 ## Evaluation
 
-The repository contains 15 golden troubleshooting cases and 13 passing backend tests.
+The repository contains 15 golden troubleshooting cases and 16 passing backend tests.
 
 | Release metric | Current offline result | Floor |
 |---|---:|---:|
@@ -198,7 +221,8 @@ The repository contains 15 golden troubleshooting cases and 13 passing backend t
 | Evidence provenance coverage | 100% | 100% |
 | Client-safe brief guardrail pass rate | 100% | 100% |
 | Governance workflow (diagnose → approve → audit) | Passing | Passing |
-| Backend tests | 13 passing | 100% |
+| Public demo read-only guarantee (no audit/recommendation writes, no approval access) | Passing | Passing |
+| Backend tests | 16 passing | 100% |
 | Frontend production build | Passing | Passing |
 
 These numbers measure the deterministic synthetic benchmark. They are not a claim of accuracy on customer incidents. A provider-specific LLM report requires an API key, repeated runs, and expert-labeled real incidents.
@@ -240,13 +264,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open:
+Open (local only):
 
-- Product: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
-- API health: [http://localhost:8000/health](http://localhost:8000/health)
-- API readiness: [http://localhost:8000/ready](http://localhost:8000/ready)
-- API docs in local mode: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Metrics: [http://localhost:8000/metrics](http://localhost:8000/metrics)
+- Local frontend: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
+- Local API health: [http://localhost:8000/health](http://localhost:8000/health)
+- Local API readiness: [http://localhost:8000/ready](http://localhost:8000/ready)
+- Local API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Local metrics: [http://localhost:8000/metrics](http://localhost:8000/metrics)
 
 Demo sign-in:
 
@@ -315,6 +339,8 @@ npx playwright install --with-deps chromium
 npm run record
 ```
 
+The recorder exercises the full-login workflow (real approval, real audit record) and intentionally does not cover `/demo` - the public session is read-only, so there is no approval/governance step for it to demonstrate. Use the [90-second public demo click-through](#public-portfolio-demo) above to walk through `/demo` manually.
+
 ## Environment Variables
 
 | Variable | Purpose |
@@ -329,7 +355,9 @@ npm run record
 | `FRONTEND_ORIGIN` | CORS allowlisted frontend |
 | `API_BASE_URL` | Server-side frontend proxy target |
 
-## API Example
+## API Example (Local)
+
+Against the local Docker stack from [Local Setup](#local-setup):
 
 Sign in:
 
@@ -350,39 +378,38 @@ curl -X POST http://localhost:8000/api/agent/diagnose \
 
 ## Synthetic Failure Scenarios
 
-The deterministic dataset contains:
+The deterministic dataset spans seven fictional campaigns across automotive, streaming, retail, gaming, finance, telecom, and travel verticals, each with a distinct, evidence-backed root cause:
 
-1. Narrow targeting.
-2. Missing companion asset and rejected creative.
-3. VAST timeout.
-4. Bid below floor.
-5. Strict frequency cap.
-6. Late campaign start.
-7. Low CTV inventory by country.
-8. Device-targeting mismatch.
-9. Publisher category block.
-10. High-priority campaign consuming shared inventory.
+1. Narrow targeting and brand-safety exclusions (automotive).
+2. Missing companion asset and rejected creative (streaming, addressable TV).
+3. Bid below floor and narrow targeting on an underperforming segment (retail).
+4. Combined geo/device/frequency-cap constraints narrowing eligible CTV inventory (gaming — hero campaign, ID 1048).
+5. High-priority sponsorship creating shared-inventory pressure on peer campaigns (telecom).
+6. Publisher inventory allocation running below forecast on a premium video buy (finance).
+7. Weekend-concentrated inventory plus a delayed creative approval, driving a late campaign start (travel).
 
-Volumes include five campaigns, twenty creatives, one thousand ad requests, five hundred impressions, three hundred bid responses, twenty VAST errors, and thirty pacing snapshots.
+Plus VAST/creative runtime errors across the roster: mediafile timeout, companion-asset missing, tracking-pixel timeout, and wrapper/VAST validation timeouts.
+
+Volumes include seven campaigns, twenty-eight creatives, 1,440 ad requests, 725 impressions, 740 bid responses, twenty VAST validation errors, and forty-two pacing snapshots.
+
+Automated golden-case evaluation (below) currently covers the original five diagnostic scenarios (Campaigns 1045-1049); the two newest campaigns (1050 finance, 1051 travel) extend the demo dataset and were verified by hand to trigger the correct root causes through the same deterministic rule engine, not a separate code path.
 
 ## Public Deployment
 
-`render.yaml` defines:
+The live instance runs:
 
-- managed PostgreSQL;
-- backend Docker service with migrations, seed-once demo data, and readiness checks;
-- frontend Docker service using the same-origin API proxy;
-- generated JWT secret;
-- optional OpenAI key.
+- **Frontend:** Vercel (the same Next.js app as local Docker - `NEXT_PUBLIC_API_BASE_URL`/`API_BASE_URL` point at the Render backend through the same-origin proxy route).
+- **Backend:** Render, deployed from `backend/Dockerfile`.
+- **Database:** Neon (managed Postgres with `pgvector`).
 
-After importing the repository as a Render Blueprint:
+`render.yaml` also defines an all-Render Blueprint alternative (managed PostgreSQL, backend Docker service, and a frontend Docker service using the same-origin proxy) if you'd rather not split frontend/backend across two providers. After importing the repository as a Render Blueprint:
 
 1. Set backend `FRONTEND_ORIGIN` to the frontend public URL.
 2. Set frontend `API_BASE_URL` to the backend public URL.
 3. Optionally add `OPENAI_API_KEY`.
 4. Deploy and verify `/ready`.
 
-A permanent public URL cannot be created from source code alone; it requires the repository owner’s cloud account and billing/terms acceptance.
+Either way, a permanent public URL cannot be created from source code alone; it requires the repository owner's cloud accounts and billing/terms acceptance. Render's free tier can cold-start a sleeping instance (up to ~60s) - the frontend detects this (network timeout, not a 401) and shows "Waking demo backend..." with a Retry button instead of bouncing the visitor to a broken page or a spurious login screen.
 
 ## Product Documentation
 
@@ -429,7 +456,7 @@ No genuine customer interviews are claimed. The repository includes a ready-to-r
 
 ## Known Limitations
 
-- Synthetic data only.
+- Seeded, realistic fictional data — no live ad server, SSP, or DSP integration.
 - No genuine user interviews completed yet.
 - No live model benchmark without an API key.
 - The default local-hash embedding fallback is deterministic and offline-friendly, but its retrieval relevance is noisy for short queries; it is a development placeholder, not a claim of production-quality semantic search. Configure `RAG_EMBEDDING_PROVIDER=openai` for a real relevance benchmark.
@@ -438,6 +465,8 @@ No genuine customer interviews are claimed. The repository includes a ready-to-r
 - No direct mutation of live campaign settings.
 - The tool registry (`GET /api/agent/tools`) documents the bounded tool surface in an MCP-compatible shape; it is not a running MCP server, by deliberate choice (see [Tool Registry And MCP](#tool-registry-and-mcp)).
 - Public deployment still requires the repository owner to connect a cloud account.
+- The public `/demo` session is read-only by design and rate-limited per IP: it runs the real diagnosis pipeline but never persists an audit log or recommendation change, and cannot approve, reject, or reseed anything. It shares the same seeded dataset as the full login.
+- Render's free tier can cold-start a sleeping backend instance (up to ~60s); the frontend surfaces this as a "waking up" retry state rather than a broken page, but the first request after idle time is still slow.
 
 ## Why This Project Matters
 

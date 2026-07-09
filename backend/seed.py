@@ -74,7 +74,7 @@ def build_seed_data() -> dict[str, list]:
         User(
             id=1,
             email=settings.demo_admin_email.lower(),
-            full_name="Alex Morgan",
+            full_name="Maya Hoffmann",
             password_hash=hash_password(settings.demo_admin_password, b"adops-signal-1"),
             role="adops_manager",
             is_active=True,
@@ -82,7 +82,7 @@ def build_seed_data() -> dict[str, list]:
         User(
             id=2,
             email="product@demo.adops.local",
-            full_name="Maya Chen",
+            full_name="Sofia Anders",
             password_hash=hash_password("ProductDemo!2026", b"adops-signal-2"),
             role="product_manager",
             is_active=True,
@@ -90,22 +90,36 @@ def build_seed_data() -> dict[str, list]:
         User(
             id=3,
             email="success@demo.adops.local",
-            full_name="Jonas Weber",
+            full_name="Ravi Menon",
             password_hash=hash_password("SuccessDemo!2026", b"adops-signal-3"),
             role="viewer",
+            is_active=True,
+        ),
+        User(
+            id=4,
+            email="campaignops@demo.adops.local",
+            full_name="Daniel Keller",
+            password_hash=hash_password("OpsManager!2026", b"adops-signal-4"),
+            role="adops_manager",
             is_active=True,
         ),
     ]
     advertisers = [
         Advertiser(id=201, name="RheinAuto Mobility", industry="Automotive", region="DACH"),
-        Advertiser(id=202, name="NordicStream+", industry="Entertainment", region="Nordics"),
+        Advertiser(id=202, name="NordicStream+", industry="Streaming", region="Nordics"),
         Advertiser(id=203, name="LuxeHome Retail", industry="Retail", region="Europe"),
         Advertiser(id=204, name="GameHub Studios", industry="Gaming", region="Europe"),
+        Advertiser(id=205, name="Meridian Capital Partners", industry="Finance", region="Europe"),
+        Advertiser(id=206, name="Solstice Mobile", industry="Telecom", region="DACH"),
+        Advertiser(id=207, name="Vantage Travel Group", industry="Travel", region="Europe"),
     ]
     publishers = [
-        Publisher(id=301, name="Metro CTV Exchange", country="DE", inventory_type="CTV", device_types=dump_list(["CTV", "HbbTV"])),
-        Publisher(id=302, name="Alpine Addressable TV", country="AT", inventory_type="Addressable TV", device_types=dump_list(["HbbTV", "SetTopBox"])),
-        Publisher(id=303, name="Nordic Video Network", country="SE", inventory_type="Video", device_types=dump_list(["CTV", "Mobile", "Desktop"])),
+        Publisher(id=301, name="Premium CTV Exchange", country="DE", inventory_type="CTV", device_types=dump_list(["CTV", "HbbTV"])),
+        Publisher(id=302, name="Addressable TV Network", country="AT", inventory_type="Addressable TV", device_types=dump_list(["HbbTV", "SetTopBox"])),
+        Publisher(id=303, name="Broadcaster Video Hub", country="SE", inventory_type="Video", device_types=dump_list(["CTV", "Mobile", "Desktop"])),
+        Publisher(id=304, name="Local Streaming Marketplace", country="NL", inventory_type="Streaming", device_types=dump_list(["CTV", "Desktop"])),
+        Publisher(id=305, name="Programmatic Video Supply", country="DE", inventory_type="Programmatic Video", device_types=dump_list(["Desktop", "CTV"])),
+        Publisher(id=306, name="Sports Streaming Network", country="UK", inventory_type="Sports Streaming", device_types=dump_list(["CTV"])),
     ]
     inventory_segments = [
         InventorySegment(id=401, publisher_id=301, segment_name="DE CTV Sports Prime", country="DE", device_type="CTV", content_category="Sports", avg_daily_available_impressions=145_000, floor_price=18.0),
@@ -118,6 +132,10 @@ def build_seed_data() -> dict[str, list]:
         InventorySegment(id=408, publisher_id=303, segment_name="NO CTV News", country="NO", device_type="CTV", content_category="News", avg_daily_available_impressions=42_000, floor_price=18.5),
         InventorySegment(id=409, publisher_id=301, segment_name="DE Desktop Finance Video", country="DE", device_type="Desktop", content_category="Finance", avg_daily_available_impressions=65_000, floor_price=11.0),
         InventorySegment(id=410, publisher_id=302, segment_name="CH HbbTV Sports", country="CH", device_type="HbbTV", content_category="Sports", avg_daily_available_impressions=28_000, floor_price=19.0),
+        InventorySegment(id=411, publisher_id=305, segment_name="DE Programmatic Finance Video", country="DE", device_type="Desktop", content_category="Finance", avg_daily_available_impressions=38_000, floor_price=20.0),
+        InventorySegment(id=412, publisher_id=305, segment_name="NL Programmatic Business News", country="NL", device_type="CTV", content_category="Business News", avg_daily_available_impressions=22_000, floor_price=21.5),
+        InventorySegment(id=413, publisher_id=306, segment_name="UK Weekend Sports Streaming", country="UK", device_type="CTV", content_category="Sports", avg_daily_available_impressions=160_000, floor_price=16.0),
+        InventorySegment(id=414, publisher_id=306, segment_name="UK Weekday Travel Streaming", country="UK", device_type="CTV", content_category="Travel", avg_daily_available_impressions=24_000, floor_price=15.0),
     ]
     campaigns = [
         Campaign(
@@ -177,8 +195,8 @@ def build_seed_data() -> dict[str, list]:
         Campaign(
             id=1048,
             advertiser_id=204,
-            campaign_name="GameHub Summer Quest",
-            campaign_type="CTV Awareness",
+            campaign_name="GameHub Studios Nordic CTV Launch",
+            campaign_type="CTV Launch",
             start_date=date(2026, 6, 18),
             end_date=date(2026, 6, 26),
             goal_impressions=450_000,
@@ -194,8 +212,8 @@ def build_seed_data() -> dict[str, list]:
         ),
         Campaign(
             id=1049,
-            advertiser_id=201,
-            campaign_name="RheinAuto Sponsorship Takeover",
+            advertiser_id=206,
+            campaign_name="Solstice Mobile 5G Flagship Sponsorship",
             campaign_type="CTV Sponsorship",
             start_date=date(2026, 6, 1),
             end_date=date(2026, 6, 25),
@@ -209,6 +227,42 @@ def build_seed_data() -> dict[str, list]:
             frequency_cap=6,
             bid_floor=19.0,
             priority_level="High",
+        ),
+        Campaign(
+            id=1050,
+            advertiser_id=205,
+            campaign_name="Meridian Capital Partners Wealth Management Premium Video",
+            campaign_type="Premium Video",
+            start_date=date(2026, 6, 5),
+            end_date=date(2026, 6, 30),
+            goal_impressions=900_000,
+            delivered_impressions=430_000,
+            budget=110_000,
+            status="active",
+            target_countries=dump_list(["DE", "NL"]),
+            target_devices=dump_list(["Desktop", "CTV"]),
+            target_content_categories=dump_list(["Finance", "Business News"]),
+            frequency_cap=3,
+            bid_floor=20.0,
+            priority_level="Standard",
+        ),
+        Campaign(
+            id=1051,
+            advertiser_id=207,
+            campaign_name="Vantage Travel Group Getaway Season Launch",
+            campaign_type="CTV Awareness",
+            start_date=date(2026, 6, 16),
+            end_date=date(2026, 7, 5),
+            goal_impressions=550_000,
+            delivered_impressions=140_000,
+            budget=72_000,
+            status="active",
+            target_countries=dump_list(["UK"]),
+            target_devices=dump_list(["CTV"]),
+            target_content_categories=dump_list(["Travel", "Sports"]),
+            frequency_cap=3,
+            bid_floor=15.5,
+            priority_level="Standard",
         ),
     ]
 
@@ -237,7 +291,7 @@ def build_seed_data() -> dict[str, list]:
         (501, "VAST_TIMEOUT", "VAST wrapper chain exceeded timeout threshold.", "medium", 5),
         (505, "VAST_TIMEOUT", "Media file host responded too slowly for CTV playback.", "high", 4),
         (513, "MEDIAFILE_MISSING", "No compatible MP4 media file was found in the VAST response.", "high", 3),
-        (516, "TRACKING_URI_ERROR", "Tracking URI returned a non-200 response.", "medium", 4),
+        (516, "TRACKING_PIXEL_TIMEOUT", "Tracking pixel request timed out before confirming playback.", "medium", 4),
     ]
     error_id = 601
     for creative_id_ref, code, message, severity, count in error_specs:
@@ -261,6 +315,8 @@ def build_seed_data() -> dict[str, list]:
         1047: [92, 94, 96, 95, 97, 99],
         1048: [66, 60, 55, 47, 43, 39],
         1049: [105, 108, 110, 112, 116, 118],
+        1050: [70, 66, 61, 57, 53, 49],
+        1051: [58, 50, 44, 38, 34, 29],
     }
     snapshot_id = 701
     for campaign in campaigns:
@@ -385,12 +441,167 @@ def build_seed_data() -> dict[str, list]:
         )
         impression_id += 1
 
+    # Isolated RNG instance: extending the campaign roster below must never perturb
+    # the shared `random` module sequence consumed above, since golden evaluation
+    # cases and backend tests are tuned to the exact 1045-1049 evidence it produces.
+    new_campaign_rng = random.Random(2050)
+    new_campaign_specs = {
+        1050: {
+            "segments": [411, 412],
+            "failure_reason": "publisher_allocation_below_forecast",
+            "failure_rate": 0.50,
+            "bid_range": (17.5, 21.0),
+        },
+        1051: {
+            "segments": [413, 413, 413, 414],
+            "failure_reason": "weekend_inventory_concentration",
+            "failure_rate": 0.48,
+            "bid_range": (13.5, 17.5),
+        },
+    }
+    for new_campaign_id, spec in new_campaign_specs.items():
+        new_campaign = next(item for item in campaigns if item.id == new_campaign_id)
+        window_start = max(new_campaign.start_date, TODAY - timedelta(days=8))
+        if new_campaign_id == 1051:
+            window_start = max(window_start, new_campaign.start_date + timedelta(days=4))
+        day_span = max((TODAY - window_start).days, 0)
+        for _ in range(220):
+            segment_id = new_campaign_rng.choice(spec["segments"])
+            segment = segment_by_id[segment_id]
+            status = "eligible"
+            failure_reason = None
+            if new_campaign_rng.random() < spec["failure_rate"]:
+                status = "failed"
+                failure_reason = spec["failure_reason"]
+            timestamp = datetime.combine(
+                window_start + timedelta(days=new_campaign_rng.randint(0, day_span)),
+                time(hour=new_campaign_rng.randint(0, 23), minute=new_campaign_rng.randint(0, 59)),
+            )
+            ad_request = AdRequest(
+                id=request_id,
+                campaign_id=new_campaign_id,
+                publisher_id=segment.publisher_id,
+                inventory_segment_id=segment.id,
+                timestamp=timestamp,
+                device_type=segment.device_type,
+                country=segment.country,
+                content_category=segment.content_category,
+                request_status=status,
+                failure_reason=failure_reason,
+            )
+            ad_requests.append(ad_request)
+
+            floor = float(segment.floor_price)
+            bid_price = round(new_campaign_rng.uniform(*spec["bid_range"]), 2)
+            won = status == "eligible" and bid_price >= floor and new_campaign_rng.random() > 0.18
+            loss_reason = None if won else ("bid_below_floor" if bid_price < floor else failure_reason or "auction_lost")
+            bid_responses.append(
+                BidResponse(
+                    id=bid_id,
+                    campaign_id=new_campaign_id,
+                    ad_request_id=request_id,
+                    bid_price=bid_price,
+                    floor_price=floor,
+                    won=won,
+                    loss_reason=loss_reason,
+                )
+            )
+            bid_id += 1
+            request_id += 1
+
+    new_eligible_requests = [
+        request
+        for request in ad_requests
+        if request.campaign_id in new_campaign_specs and request.request_status == "eligible"
+    ]
+    for request in new_eligible_requests:
+        impressions.append(
+            Impression(
+                id=impression_id,
+                campaign_id=request.campaign_id,
+                publisher_id=request.publisher_id,
+                timestamp=request.timestamp + timedelta(seconds=new_campaign_rng.randint(1, 45)),
+                device_type=request.device_type,
+                country=request.country,
+                content_category=request.content_category,
+                revenue=round(new_campaign_rng.uniform(0.018, 0.055), 4),
+            )
+        )
+        impression_id += 1
+
     recommendations = [
-        Recommendation(campaign_id=1045, title="Expand eligible CTV inventory", description="Add AT HbbTV entertainment as a controlled test or include DE entertainment CTV supply.", expected_impact="High", risk_level="Medium", status="pending", created_at=utc_now()),
-        Recommendation(campaign_id=1046, title="Replace rejected creative", description="Request a corrected companion asset and resubmit the addressable creative.", expected_impact="High", risk_level="Low", status="pending", created_at=utc_now()),
-        Recommendation(campaign_id=1047, title="Increase bid competitiveness", description="Raise bids on desktop finance and lifestyle video inventory or negotiate lower floors.", expected_impact="High", risk_level="Medium", status="pending", created_at=utc_now()),
-        Recommendation(campaign_id=1048, title="Fix device targeting mismatch", description="Remove mobile-only gaming segments from the CTV campaign and add Nordic CTV entertainment supply.", expected_impact="High", risk_level="Low", status="pending", created_at=utc_now()),
-        Recommendation(campaign_id=1049, title="Monitor shared inventory pressure", description="Track whether high-priority sponsorship delivery is suppressing standard priority campaigns.", expected_impact="Medium", risk_level="Low", status="pending", created_at=utc_now()),
+        Recommendation(
+            campaign_id=1045,
+            title="Expand eligible CTV inventory",
+            description="Relax the overly narrow device and geo constraints on a controlled test basis while preserving core brand-safety tiers, or add DE entertainment CTV supply.",
+            expected_impact="High",
+            risk_level="Medium",
+            status="pending",
+            created_at=utc_now(),
+        ),
+        Recommendation(
+            campaign_id=1046,
+            title="Replace rejected creative",
+            description="Request a corrected companion asset from the creative agency and resubmit the addressable creative for revalidation.",
+            expected_impact="High",
+            risk_level="Low",
+            status="approved",
+            created_at=utc_now() - timedelta(days=3),
+            decision_reason="Corrected VAST tag received from the creative agency and revalidated; approved to resume full delivery on the addressable flight.",
+            decided_at=utc_now() - timedelta(days=3),
+            decided_by_user_id=4,
+        ),
+        Recommendation(
+            campaign_id=1047,
+            title="Reallocate budget from underperforming segment",
+            description="Shift spend away from the low-performing desktop finance and lifestyle video segment toward proven retail-audience CTV supply instead of raising bids further.",
+            expected_impact="High",
+            risk_level="Medium",
+            status="rejected",
+            created_at=utc_now() - timedelta(days=5),
+            decision_reason="Budget increase deferred pending Q3 reforecast; monitor segment efficiency before committing incremental spend on underperforming inventory.",
+            decided_at=utc_now() - timedelta(days=4),
+            decided_by_user_id=4,
+        ),
+        Recommendation(
+            campaign_id=1048,
+            title="Expand eligible CTV inventory",
+            description="Relax the combined SE/NO geo, CTV-only device, and frequency-cap constraints, or add Nordic CTV entertainment supply, to close the delivery gap before client escalation.",
+            expected_impact="High",
+            risk_level="Low",
+            status="pending",
+            created_at=utc_now(),
+        ),
+        Recommendation(
+            campaign_id=1049,
+            title="Confirm sponsorship priority allocation",
+            description="Confirm the flagship sponsorship's high-priority allocation is intentional and reserve protected shared inventory for standard-priority peer campaigns for the remainder of the flight.",
+            expected_impact="Medium",
+            risk_level="Low",
+            status="approved",
+            created_at=utc_now() - timedelta(days=2),
+            decision_reason="Sponsorship priority is intentional for the 5G launch flight. Reserved a protected allocation for peer campaigns to reduce shared-inventory pressure for the remainder of the window.",
+            decided_at=utc_now() - timedelta(days=2),
+            decided_by_user_id=1,
+        ),
+        Recommendation(
+            campaign_id=1050,
+            title="Shift budget to available premium CTV supply",
+            description="Shift budget from the constrained programmatic finance segment, where publisher inventory allocation is running below forecast, to available premium CTV supply with comparable brand suitability.",
+            expected_impact="High",
+            risk_level="Medium",
+            status="pending",
+            created_at=utc_now(),
+        ),
+        Recommendation(
+            campaign_id=1051,
+            title="Expedite creative approval and rebalance flight",
+            description="Expedite the pending creative sign-off and rebalance the flight toward available weekend inventory while working with publisher operations to add weekday supply for the remaining window.",
+            expected_impact="High",
+            risk_level="Medium",
+            status="pending",
+            created_at=utc_now(),
+        ),
     ]
 
     return {

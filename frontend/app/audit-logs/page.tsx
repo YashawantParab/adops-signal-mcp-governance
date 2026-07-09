@@ -10,32 +10,38 @@ import { PageHeader } from "@/components/PageHeader";
 import { RiskBadge } from "@/components/RiskBadge";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StateViews";
 import { WorkflowBar } from "@/components/WorkflowBar";
-import { api, formatDateTime, formatReviewer } from "@/lib/api";
+import { api, DEMO_VIEWER_ROLE, formatDateTime, formatReviewer } from "@/lib/api";
 import type { AuditLog, Recommendation } from "@/types";
 
-const GOVERNANCE_ROLES = ["admin", "adops_manager", "product_manager"];
+const GOVERNANCE_ROLES = ["admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE];
 
 function AuditWorkspace() {
   const { user } = useAuth();
-  const canView = GOVERNANCE_ROLES.includes(user.role);
+  // AppShell only mounts this page once a session exists, so user is always
+  // set here in practice - this fallback just keeps the type checker honest.
+  const canView = !!user && GOVERNANCE_ROLES.includes(user.role);
   const searchParams = useSearchParams();
   const initialCampaignId = searchParams.get("campaignId") ?? "All";
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [campaignFilter, setCampaignFilter] = useState(initialCampaignId);
   const [loading, setLoading] = useState(canView);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
-  useEffect(() => {
+  function load() {
     if (!canView) return;
+    setLoading(true);
+    setError(null);
     Promise.all([api.auditLogs(), api.recommendations()])
       .then(([auditItems, recommendationItems]) => {
         setLogs(auditItems);
         setRecommendations(recommendationItems);
       })
-      .catch((err: Error) => setError(err.message))
+      .catch(setError)
       .finally(() => setLoading(false));
-  }, [canView]);
+  }
+
+  useEffect(load, [canView]);
 
   const campaignIds = useMemo(
     () => Array.from(new Set([...logs.map((log) => log.campaign_id), ...recommendations.map((item) => item.campaign_id)])).sort(),
@@ -56,14 +62,14 @@ function AuditWorkspace() {
         <WorkflowBar currentStep={4} />
         <EmptyState
           title="Restricted to authorized roles"
-          body={`Your role (${user.role.replace("_", " ")}) does not include governance record access. Sign in as an AdOps Manager or Product Manager to view investigation and decision history.`}
+          body={`Your role (${(user?.role ?? "unknown").replace("_", " ")}) does not include governance record access. Sign in as an AdOps Manager or Product Manager to view investigation and decision history.`}
         />
       </>
     );
   }
 
   if (loading) return <LoadingState label="Loading governance record" />;
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState error={error} onRetry={load} />;
 
   return (
     <>
@@ -167,7 +173,7 @@ function AuditWorkspace() {
                     </td>
                     <td className="max-w-xs px-4 py-4 text-slate-700">{log.user_query}</td>
                     <td className="whitespace-nowrap px-4 py-4">
-                      <p className="font-medium">{log.execution_mode === "llm_rag" ? log.model_name : "Fallback"}</p>
+                      <p className="font-medium">{log.execution_mode === "llm_rag" ? log.model_name : "Grounded fallback"}</p>
                       <p className="mt-1 text-xs capitalize text-accent">{log.query_intent.replaceAll("_", " ")}</p>
                       <p className="mt-1 text-xs text-slate-500">
                         {Math.round(log.confidence_score * 100)}% · {log.latency_ms} ms

@@ -1,4 +1,7 @@
 id,name,country,inventory_type,device_types
-301,Metro CTV Exchange,DE,CTV,"[""CTV"", ""HbbTV""]"
-302,Alpine Addressable TV,AT,Addressable TV,"[""HbbTV"", ""SetTopBox""]"
-303,Nordic Video Network,SE,Video,"[""CTV"", ""Mobile"", ""Desktop""]"
+301,Premium CTV Exchange,DE,CTV,"[""CTV"", ""HbbTV""]"
+302,Addressable TV Network,AT,Addressable TV,"[""HbbTV"", ""SetTopBox""]"
+303,Broadcaster Video Hub,SE,Video,"[""CTV"", ""Mobile"", ""Desktop""]"
+304,Local Streaming Marketplace,NL,Streaming,"[""CTV"", ""Desktop""]"
+305,Programmatic Video Supply,DE,Programmatic Video,"[""Desktop"", ""CTV""]"
+306,Sports Streaming Network,UK,Sports Streaming,"[""CTV""]"
