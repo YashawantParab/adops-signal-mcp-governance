@@ -167,9 +167,9 @@ Without a provider key, or when the provider fails, the application returns a cl
 
 ## Tool Registry And MCP
 
-The agent's tool surface is intentionally small (ten bounded tools, one internal consumer). We evaluated adding a full [Model Context Protocol](https://modelcontextprotocol.io) server and decided against it for now: MCP earns its complexity when multiple agent hosts or external consumers need to call the same tools over a standard transport, which isn't the case here. Building one anyway would add a process, a transport, and new failure modes to the demo for no visible workflow improvement.
+The agent's internal tool surface is intentionally small (ten bounded tools, one internal consumer). `backend/app/agent/tool_registry.py` declares every existing agent tool in an MCP-compatible descriptor shape (`name`, `description`, `input_schema`, `output_contract`), served read-only at `GET /api/agent/tools`.
 
-Instead, `backend/app/agent/tool_registry.py` declares every tool in an MCP-compatible descriptor shape (`name`, `description`, `input_schema`, `output_contract`), served read-only at `GET /api/agent/tools`. This keeps the tool surface enumerable and documented today, and is the exact shape a future MCP server would wrap if a second agent host ever needed it — see [AI_AGENT_DESIGN.md](./docs/AI_AGENT_DESIGN.md#tool-registry--mcp-readiness) for the full decision record.
+The `mcp-governance-v1` branch adds a first minimal MCP server milestone under `mcp-server/`. It exposes two read-only tools, `ping_adops_signal` and `get_campaign_health`, and reuses the existing backend campaign health service rather than introducing a parallel analytics path. See [MCP Local Setup](./docs/mcp-local-setup.md) for local install and test commands.
 
 ## Architecture
 
