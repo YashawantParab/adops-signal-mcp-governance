@@ -171,6 +171,8 @@ The agent's internal tool surface is intentionally small (ten bounded tools, one
 
 The `mcp-governance-v1` branch adds a first minimal MCP server milestone under `mcp-server/`. It exposes two read-only tools, `ping_adops_signal` and `get_campaign_health`, and reuses the existing backend campaign health service rather than introducing a parallel analytics path. See [MCP Local Setup](./docs/mcp-local-setup.md) for local install and test commands.
 
+The backend also includes MCP governance persistence for agent runs, MCP tool calls, approval requests, policy checks, and blocked actions. See [MCP Governance Backend API](./docs/mcp-governance-api.md) for migration, seed, and curl examples.
+
 ## Architecture
 
 ```mermaid

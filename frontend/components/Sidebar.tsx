@@ -2,7 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Bot, ClipboardCheck, History, LayoutDashboard, LogOut, Menu, TrendingUp, Tv, X } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  ClipboardCheck,
+  Gauge,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  ShieldCheck,
+  TrendingUp,
+  Tv,
+  Wrench,
+  X
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api, DEMO_VIEWER_ROLE } from "@/lib/api";
@@ -10,16 +24,36 @@ import type { SystemStatus } from "@/types";
 
 import { useAuth } from "./AuthProvider";
 
+const MCP_GOVERNANCE_ROLES = ["admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE];
+
 const nav = [
   { href: "/dashboard", label: "Operations", icon: LayoutDashboard },
   { href: "/agent", label: "Investigations", icon: Bot },
   { href: "/vast-validator", label: "VAST Validator", icon: Tv },
+  {
+    href: "/mcp-governance",
+    label: "MCP Dashboard",
+    icon: Gauge,
+    roles: MCP_GOVERNANCE_ROLES
+  },
+  {
+    href: "/mcp-governance/agent",
+    label: "MCP Agent Console",
+    icon: ShieldCheck,
+    roles: MCP_GOVERNANCE_ROLES
+  },
   { href: "/recommendations", label: "Decision Queue", icon: ClipboardCheck },
   {
     href: "/audit-logs",
     label: "Governance Record",
     icon: History,
     roles: ["admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE]
+  },
+  {
+    href: "/mcp-governance/tools",
+    label: "MCP Tool Registry",
+    icon: Wrench,
+    roles: MCP_GOVERNANCE_ROLES
   },
   { href: "/impact", label: "Business Impact", icon: TrendingUp }
 ];
@@ -66,7 +100,9 @@ export function Sidebar() {
       >
         {visibleNav.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active =
+            pathname === item.href ||
+            (item.href !== "/mcp-governance" && pathname.startsWith(`${item.href}/`));
           return (
             <Link
               key={item.href}

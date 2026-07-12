@@ -84,6 +84,35 @@ Then call:
 ```json
 {"campaign_id": 1045}
 ```
+- `get_campaign_pacing` with:
+
+```json
+{"campaign_id": 1045}
+```
+
+- `get_vast_validation_summary` with:
+
+```json
+{"campaign_id": 1046}
+```
+
+- `get_brand_safety_findings` with:
+
+```json
+{"campaign_id": 1045}
+```
+
+- `get_recommendation_history` with:
+
+```json
+{"campaign_id": 1046}
+```
+
+- `search_policy_context` with:
+
+```json
+{"query": "budget shift human approval"}
+```
 
 ## Simple Local Tool Test
 
@@ -117,6 +146,8 @@ Validation and lookup failures return structured JSON with:
 
 ## Exposed Tools
 
+Long arrays in the examples below are shortened for readability.
+
 ### `ping_adops_signal()`
 
 Returns MCP server readiness and database connectivity.
@@ -133,6 +164,191 @@ Validates `campaign_id`, loads the campaign through the existing backend databas
 - inventory summary
 - bid analysis
 - main suspected issue
+
+### `get_campaign_pacing(campaign_id)`
+
+Returns latest and historical pacing snapshots from `pacing_snapshots`.
+
+Example input:
+
+```json
+{"campaign_id": 1045}
+```
+
+Example output:
+
+```json
+{
+  "ok": true,
+  "campaign_id": 1045,
+  "campaign_name": "RheinAuto CTV Launch",
+  "latest": {
+    "snapshot_date": "2026-06-23",
+    "expected_delivery": 777778,
+    "actual_delivery": 451111,
+    "pacing_percentage": 58.0,
+    "risk_level": "High"
+  },
+  "trend": {
+    "previous_pacing_percentage": 61.0,
+    "delta_percentage_points": -3.0,
+    "direction": "declining"
+  },
+  "remaining_delivery": {
+    "goal_impressions": 1000000,
+    "remaining_impressions": 548889,
+    "flight_days_remaining": 4,
+    "required_daily_impressions": 137222
+  },
+  "history": []
+}
+```
+
+### `get_vast_validation_summary(campaign_id)`
+
+Returns creative approval status, persisted VAST errors, error-code counts, severity counts, rejection reasons, and suggested review steps.
+
+Example input:
+
+```json
+{"campaign_id": 1046}
+```
+
+Example output:
+
+```json
+{
+  "ok": true,
+  "campaign_id": 1046,
+  "valid": false,
+  "creative_count": 4,
+  "approval_status_counts": {
+    "approved": 3,
+    "rejected": 1
+  },
+  "rejected_count": 1,
+  "vast_error_count": 8,
+  "error_code_counts": {
+    "COMPANION_MISSING": 4,
+    "VAST_TIMEOUT": 4
+  },
+  "rejection_reasons": [
+    "Missing companion asset for addressable TV placement."
+  ],
+  "latest_errors": [],
+  "suggested_fix": "Request a revised creative package with the missing companion asset and resubmit for approval."
+}
+```
+
+### `get_brand_safety_findings(campaign_id)`
+
+Returns deterministic brand-safety findings from campaign targeting, advertiser vertical, creative status, VAST errors, and recommendation text.
+
+Example input:
+
+```json
+{"campaign_id": 1045}
+```
+
+Example output:
+
+```json
+{
+  "ok": true,
+  "campaign_id": 1045,
+  "campaign_name": "RheinAuto CTV Launch",
+  "findings": [
+    {
+      "type": "creative_quality_governance",
+      "severity": "medium",
+      "message": "Persisted VAST errors should be reviewed before scaling delivery.",
+      "evidence": {
+        "vast_error_count": 5
+      }
+    },
+    {
+      "type": "recommendation_policy_reference",
+      "severity": "low",
+      "message": "Existing recommendation explicitly references brand-safety or brand-suitability controls.",
+      "evidence": {
+        "recommendation_id": 1,
+        "title": "Expand eligible CTV inventory",
+        "status": "pending"
+      }
+    }
+  ],
+  "read_only": true
+}
+```
+
+### `get_recommendation_history(campaign_id)`
+
+Returns recommendation status history and reviewer metadata. It does not approve, reject, or modify recommendations.
+
+Example input:
+
+```json
+{"campaign_id": 1046}
+```
+
+Example output:
+
+```json
+{
+  "ok": true,
+  "campaign_id": 1046,
+  "campaign_name": "NordicStream Family Addressable",
+  "recommendation_count": 1,
+  "status_counts": {
+    "approved": 1
+  },
+  "recommendations": [
+    {
+      "id": 2,
+      "title": "Replace rejected creative",
+      "status": "approved",
+      "decision_reason": "Corrected VAST tag received from the creative agency and revalidated; approved to resume full delivery on the addressable flight.",
+      "decided_by_name": "Daniel Keller",
+      "decided_by_role": "adops_manager"
+    }
+  ],
+  "read_only": true
+}
+```
+
+### `search_policy_context(query)`
+
+Searches local markdown files in `docs/policies/` with simple keyword retrieval. It does not use a vector database or LLM.
+
+Example input:
+
+```json
+{"query": "budget shift human approval"}
+```
+
+Example output:
+
+```json
+{
+  "ok": true,
+  "query": "budget shift human approval",
+  "matches": [
+    {
+      "source": "docs/policies/budget-shift-policy.md",
+      "title": "Budget Shift Policy",
+      "score": 14,
+      "matched_keywords": ["approval", "budget", "human", "shift"],
+      "snippet": "Budget shifts can materially affect delivery commitments, client outcomes, and publisher allocation. Any recommendation to move spend between inventory segments, channels, campaigns, or supply sources requires human approval and a recorded rationale."
+    }
+  ],
+  "retrieval": {
+    "method": "keyword",
+    "policy_dir": "docs/policies",
+    "vector_db_used": false,
+    "llm_used": false
+  }
+}
+```
 
 ## Current Scope
 

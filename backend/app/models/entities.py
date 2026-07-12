@@ -196,6 +196,93 @@ class AgentAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
 
 
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_query: Mapped[str] = mapped_column(Text, nullable=False)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False)
+    final_recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    campaign: Mapped[Campaign] = relationship()
+    tool_calls: Mapped[list["MCPToolCall"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
+    approval_requests: Mapped[list["ApprovalRequest"]] = relationship(
+        back_populates="agent_run", cascade="all, delete-orphan"
+    )
+    policy_checks: Mapped[list["PolicyCheck"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
+    blocked_actions: Mapped[list["BlockedAction"]] = relationship(
+        back_populates="agent_run", cascade="all, delete-orphan"
+    )
+
+
+class MCPToolCall(Base):
+    __tablename__ = "mcp_tool_calls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    input_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    output_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="tool_calls")
+
+
+class ApprovalRequest(Base):
+    __tablename__ = "approval_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id"), nullable=False)
+    proposed_action: Mapped[str] = mapped_column(Text, nullable=False)
+    risk_score: Mapped[float] = mapped_column(Float, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="pending")
+    reviewer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="approval_requests")
+    campaign: Mapped[Campaign] = relationship()
+    reviewer: Mapped[Optional["User"]] = relationship()
+
+
+class PolicyCheck(Base):
+    __tablename__ = "policy_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False)
+    policy_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    result: Mapped[str] = mapped_column(String(40), nullable=False)
+    matched_rules: Mapped[list] = mapped_column(JSON, nullable=False)
+    citation: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="policy_checks")
+
+
+class BlockedAction(Base):
+    __tablename__ = "blocked_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="blocked_actions")
+
+
 class User(Base):
     __tablename__ = "users"
 

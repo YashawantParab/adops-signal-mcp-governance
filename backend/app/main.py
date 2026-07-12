@@ -4,7 +4,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 from starlette.responses import Response
 
-from app.api import agent, auth, campaigns, insights, recommendations, system
+from app.api import agent, auth, campaigns, insights, mcp, recommendations, system
 from app.config import get_settings
 from app.database import SessionLocal, create_all
 from app.observability import configure_logging, request_observability_middleware, security_headers_middleware
@@ -62,6 +62,7 @@ def metrics() -> Response:
 app.include_router(auth.router)
 app.include_router(campaigns.router)
 app.include_router(agent.router)
+app.include_router(mcp.router)
 app.include_router(recommendations.router)
 app.include_router(insights.router)
 app.include_router(system.router)

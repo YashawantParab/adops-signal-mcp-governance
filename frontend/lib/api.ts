@@ -5,6 +5,12 @@ import type {
   CampaignHealth,
   CampaignSummary,
   ClientSummaryResponse,
+  MCPAgentRun,
+  MCPAgentRunDetail,
+  MCPAgentRunResponse,
+  MCPApprovalRequest,
+  MCPSummary,
+  MCPToolDescriptor,
   Recommendation,
   AuthResponse,
   RoiAssumptions,
@@ -159,6 +165,26 @@ export const api = {
     request<RoiEstimate>("/api/insights/roi", {
       method: "POST",
       body: JSON.stringify(assumptions)
+    }),
+  mcpAgentRun: (userQuery: string, campaignId: string) =>
+    request<MCPAgentRunResponse>("/api/mcp/agent/run", {
+      method: "POST",
+      body: JSON.stringify({ user_query: userQuery, campaign_id: campaignId })
+    }),
+  mcpRunDetail: (runId: number) => request<MCPAgentRunDetail>(`/api/mcp/runs/${runId}`),
+  mcpTools: () => request<MCPToolDescriptor[]>("/api/mcp/tools"),
+  mcpRuns: () => request<MCPAgentRun[]>("/api/mcp/runs"),
+  mcpApprovals: () => request<MCPApprovalRequest[]>("/api/mcp/approvals"),
+  mcpSummary: () => request<MCPSummary>("/api/mcp/summary"),
+  approveMcpApproval: (id: number, rationale: string) =>
+    request<MCPApprovalRequest>(`/api/mcp/approvals/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ rationale })
+    }),
+  rejectMcpApproval: (id: number, rationale: string) =>
+    request<MCPApprovalRequest>(`/api/mcp/approvals/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ rationale })
     })
 };
 

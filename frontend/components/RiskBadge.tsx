@@ -12,7 +12,18 @@ const styles: Record<string, string> = {
   valid: "border-emerald-200 bg-emerald-50 text-emerald-700",
   needs_review: "border-amber-200 bg-amber-50 text-amber-700",
   approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  rejected: "border-red-200 bg-red-50 text-red-700"
+  rejected: "border-red-200 bg-red-50 text-red-700",
+  LOW: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  MEDIUM: "border-amber-200 bg-amber-50 text-amber-700",
+  HIGH: "border-red-200 bg-red-50 text-red-700",
+  CRITICAL: "border-red-300 bg-red-100 text-red-800",
+  clear: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  review_required: "border-amber-200 bg-amber-50 text-amber-700",
+  approval_required: "border-amber-200 bg-amber-50 text-amber-700",
+  blocked: "border-red-300 bg-red-100 text-red-800",
+  completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  failed: "border-red-200 bg-red-50 text-red-700",
+  running: "border-slate-200 bg-slate-50 text-slate-600"
 };
 
 export function RiskBadge({ value }: { value: RiskLevel | string }) {

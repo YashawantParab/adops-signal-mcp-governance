@@ -259,6 +259,140 @@ class SystemStatus(BaseModel):
     auth_enabled: bool
 
 
+class MCPToolCallRead(BaseModel):
+    id: int
+    agent_run_id: int
+    tool_name: str
+    input_json: dict[str, Any]
+    output_json: dict[str, Any]
+    status: str
+    latency_ms: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PolicyCheckRead(BaseModel):
+    id: int
+    agent_run_id: int
+    policy_name: str
+    result: str
+    matched_rules: list[Any]
+    citation: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BlockedActionRead(BaseModel):
+    id: int
+    agent_run_id: int
+    tool_name: str
+    reason: str
+    risk_level: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ApprovalRequestRead(BaseModel):
+    id: int
+    agent_run_id: int
+    campaign_id: int
+    campaign_name: Optional[str] = None
+    proposed_action: str
+    risk_score: float
+    risk_level: str
+    rationale: str
+    status: str
+    reviewer_id: Optional[int] = None
+    reviewer_name: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgentRunRead(BaseModel):
+    id: int
+    user_query: str
+    campaign_id: int
+    campaign_name: Optional[str] = None
+    status: str
+    risk_level: str
+    risk_score: float
+    final_recommendation: str
+    approval_required: bool
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgentRunDetail(AgentRunRead):
+    tool_calls: list[MCPToolCallRead]
+    approval_requests: list[ApprovalRequestRead]
+    policy_checks: list[PolicyCheckRead]
+    blocked_actions: list[BlockedActionRead]
+
+
+class MCPApprovalDecisionRequest(BaseModel):
+    rationale: str = Field(min_length=3, max_length=500)
+
+
+class MCPToolRead(BaseModel):
+    name: str
+    description: str
+    read_only: bool
+    input_schema: dict[str, Any]
+    output_contract: str
+    category: str = "General"
+    permission_level: str = "read"
+    approval_required: bool = False
+    risk_level: str = "Low"
+    call_count: int = 0
+    failure_rate: float = 0.0
+    last_used_at: Optional[datetime] = None
+
+
+class MCPAgentRunRequest(BaseModel):
+    user_query: str = Field(min_length=4, max_length=500)
+    campaign_id: str = Field(min_length=1, max_length=40)
+
+
+class MCPToolTimelineEntry(BaseModel):
+    step: int
+    tool_name: str
+    status: str
+    latency_ms: int
+    summary: str
+
+
+class MCPAgentRunResponse(BaseModel):
+    agent_run_id: str
+    status: str
+    campaign_id: str
+    summary: str
+    risk_score: float
+    risk_level: str
+    approval_required: bool
+    blocked: bool
+    final_recommendation: str
+    tool_timeline: list[MCPToolTimelineEntry]
+
+
+class MCPSummary(BaseModel):
+    total_runs: int
+    completed_runs: int
+    failed_runs: int
+    approval_requests: dict[str, int]
+    blocked_actions: int
+    policy_checks: dict[str, int]
+    average_risk_score: float
+    tool_calls: int
+    average_tool_latency_ms: float
+
+
 class RoiAssumptions(BaseModel):
     campaigns_per_month: int = Field(default=250, ge=1, le=100_000)
     incident_rate: float = Field(default=0.18, ge=0, le=1)

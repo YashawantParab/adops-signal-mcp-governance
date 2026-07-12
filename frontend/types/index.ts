@@ -227,3 +227,120 @@ export interface RoiEstimate {
   annualized_value_eur: number;
   assumptions: RoiAssumptions;
 }
+
+// --- MCP governance -----------------------------------------------------
+
+export interface MCPToolDescriptor {
+  name: string;
+  description: string;
+  read_only: boolean;
+  input_schema: Record<string, unknown>;
+  output_contract: string;
+  category: string;
+  permission_level: string;
+  approval_required: boolean;
+  risk_level: string;
+  call_count: number;
+  failure_rate: number;
+  last_used_at?: string | null;
+}
+
+export interface MCPToolTimelineEntry {
+  step: number;
+  tool_name: string;
+  status: string;
+  latency_ms: number;
+  summary: string;
+}
+
+export interface MCPAgentRunResponse {
+  agent_run_id: string;
+  status: string;
+  campaign_id: string;
+  summary: string;
+  risk_score: number;
+  risk_level: string;
+  approval_required: boolean;
+  blocked: boolean;
+  final_recommendation: string;
+  tool_timeline: MCPToolTimelineEntry[];
+}
+
+export interface MCPToolCall {
+  id: number;
+  agent_run_id: number;
+  tool_name: string;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
+  status: string;
+  latency_ms: number;
+  created_at: string;
+}
+
+export interface MCPPolicyCheck {
+  id: number;
+  agent_run_id: number;
+  policy_name: string;
+  result: string;
+  matched_rules: unknown[];
+  citation: string;
+  created_at: string;
+}
+
+export interface MCPBlockedAction {
+  id: number;
+  agent_run_id: number;
+  tool_name: string;
+  reason: string;
+  risk_level: string;
+  created_at: string;
+}
+
+export interface MCPApprovalRequest {
+  id: number;
+  agent_run_id: number;
+  campaign_id: number;
+  campaign_name?: string | null;
+  proposed_action: string;
+  risk_score: number;
+  risk_level: string;
+  rationale: string;
+  status: "pending" | "approved" | "rejected";
+  reviewer_id?: number | null;
+  reviewer_name?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+}
+
+export interface MCPAgentRun {
+  id: number;
+  user_query: string;
+  campaign_id: number;
+  campaign_name?: string | null;
+  status: string;
+  risk_level: string;
+  risk_score: number;
+  final_recommendation: string;
+  approval_required: boolean;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export interface MCPAgentRunDetail extends MCPAgentRun {
+  tool_calls: MCPToolCall[];
+  approval_requests: MCPApprovalRequest[];
+  policy_checks: MCPPolicyCheck[];
+  blocked_actions: MCPBlockedAction[];
+}
+
+export interface MCPSummary {
+  total_runs: number;
+  completed_runs: number;
+  failed_runs: number;
+  approval_requests: Record<string, number>;
+  blocked_actions: number;
+  policy_checks: Record<string, number>;
+  average_risk_score: number;
+  tool_calls: number;
+  average_tool_latency_ms: number;
+}
