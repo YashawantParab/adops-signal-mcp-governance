@@ -3,6 +3,10 @@
 This repository exposes the first MCP governance milestone as a separate Python server under `mcp-server/`.
 It reuses the existing SignalOps AI backend models, database configuration, and campaign health service.
 
+For the product framing of why this exists, see the [product case study](./product-case-study.md); for the same tools' schemas and the governed-orchestration API that composes them, see the [MCP tool registry](./mcp-tool-registry.md) and [architecture](./architecture.md#backend-apis). For a scripted walkthrough of the governed flow this server's tools feed, see the [demo script](./demo-script.md).
+
+All data returned by these tools is seeded and synthetic (`backend/seed.py`) — see the [dataset disclaimer](./architecture.md#dataset-disclaimer). This server is a local-only milestone: it runs manually via stdio or Streamable HTTP, and there is no hosted, authenticated MCP endpoint for external clients yet.
+
 ## Requirements
 
 - Python 3.10 or newer for the official MCP Python SDK. Use Python 3.12 or 3.13 locally.
@@ -352,4 +356,4 @@ Example output:
 
 ## Current Scope
 
-This milestone intentionally does not add frontend UI, approval workflow, LLM orchestration, or action-taking tools.
+This milestone intentionally does not add frontend UI, approval workflow, LLM orchestration, or action-taking tools. Those live in the separate embedded governance API (`/api/mcp/*`), which reuses these same tool implementations — see [Architecture](./architecture.md) and [MCP Tool Registry](./mcp-tool-registry.md).

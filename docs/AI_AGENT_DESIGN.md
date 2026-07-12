@@ -37,7 +37,7 @@ same bounded-tool call list. They are downstream, human-relevant artifacts gated
 audit, not automated evidence-gathering steps — collapsing them into the tool trace would blur the
 separation of Facts / Reasoning / Control this design is built around. Both consume the same
 evidence (the client-safe brief also retrieves playbook guidance; see RAG below) and both are
-visible as distinct stages in the UI and in `docs/DEMO_SCRIPT.md`.
+visible as distinct stages in the UI and in `docs/demo/narration.txt`.
 
 ## Model Strategy
 

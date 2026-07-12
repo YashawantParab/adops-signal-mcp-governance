@@ -165,13 +165,38 @@ The model does not receive a database connection, credentials, or an action-exec
 
 Without a provider key, or when the provider fails, the application returns a clearly marked deterministic diagnosis. This is a resilience path, not the primary production reasoning mode. Both modes call the same bounded tools and the same RAG retrieval — only the synthesis step differs — so `execution_mode` in the API/UI is the only thing that changes, not the evidence trail.
 
-## Tool Registry And MCP
+## Why MCP
 
-The agent's internal tool surface is intentionally small (ten bounded tools, one internal consumer). `backend/app/agent/tool_registry.py` declares every existing agent tool in an MCP-compatible descriptor shape (`name`, `description`, `input_schema`, `output_contract`), served read-only at `GET /api/agent/tools`.
+Giving an agent tool access to real AdTech data is not the hard part — any function-calling harness does that. The hard part is making that tool access **governable**: enumerable (what can the agent call, and what does each call return), attributable (who approved what it proposed), and auditable (what actually happened, in order, with evidence). The Model Context Protocol gives tool calls a standard shape — name, input schema, output contract — which is what makes a generic tool registry, call log, and risk-scoring layer possible to build once and reuse across every future agent, instead of bespoke governance code per agent. See [Product Case Study → Product Decision](./docs/product-case-study.md#product-decision) for the full reasoning.
 
-The `mcp-governance-v1` branch adds a first minimal MCP server milestone under `mcp-server/`. It exposes two read-only tools, `ping_adops_signal` and `get_campaign_health`, and reuses the existing backend campaign health service rather than introducing a parallel analytics path. See [MCP Local Setup](./docs/mcp-local-setup.md) for local install and test commands.
+## MCP Governance
 
-The backend also includes MCP governance persistence for agent runs, MCP tool calls, approval requests, policy checks, and blocked actions. See [MCP Governance Backend API](./docs/mcp-governance-api.md) for migration, seed, and curl examples.
+This repository exposes MCP-shaped tools through two surfaces that share the same backend service functions, so behavior cannot silently diverge between them:
+
+- **Standalone MCP server** (`mcp-server/`) — a real MCP server (`FastMCP`) over stdio or Streamable HTTP, connectable from MCP Inspector or any MCP host. Seven read-only tools: `ping_adops_signal`, `get_campaign_health`, `get_campaign_pacing`, `get_vast_validation_summary`, `get_brand_safety_findings`, `get_recommendation_history`, `search_policy_context`. See [MCP Local Setup](./docs/mcp-local-setup.md) for install and test commands.
+- **Embedded governance API** (`/api/mcp/*` in the backend) — composes those same read-only signals into one deterministic, audited investigation via `POST /api/mcp/agent/run`, backed by five governance tables (`agent_runs`, `mcp_tool_calls`, `approval_requests`, `policy_checks`, `blocked_actions`). This is what the `/mcp-governance` UI pages call. See [MCP Governance Backend API](./docs/mcp-governance-api.md) for migration, seed, and curl examples.
+
+The agent's separate legacy diagnosis tool surface (ten bounded tools, one internal consumer, described in `backend/app/agent/tool_registry.py` and served at `GET /api/agent/tools`) predates this MCP work and is documented as-is; it is not part of the MCP governance surface.
+
+No MCP **resources** or **prompts** are exposed yet — only tools. That gap, and what filling it would look like, is called out explicitly in [MCP Tool Registry → Resources and Prompts](./docs/mcp-tool-registry.md#resources-and-prompts) rather than left silent.
+
+Full tool schemas and example payloads: [MCP Tool Registry](./docs/mcp-tool-registry.md). Full system diagram, database tables, and API list: [Architecture](./docs/architecture.md).
+
+### Governance Model
+
+Every proposed action an agent run produces is scored 0–100 by a deterministic, additive risk function — not a model judgment call — over pacing risk, rejected creatives, VAST error volume, and brand-safety finding severity. LOW/MEDIUM scores return a recommendation with no escalation; HIGH scores require human approval; CRITICAL scores block the action outright and it never reaches the approval queue. See [Architecture → Risk Model](./docs/architecture.md#risk-model) for the exact formula and thresholds, and [Product Case Study → Risk Engine](./docs/product-case-study.md#risk-engine) for why this is rule-based rather than model-scored.
+
+### Human-In-The-Loop Approval
+
+A HIGH-risk run opens a pending `approval_requests` row with the proposed action, risk score, and a generated rationale. Only `admin` or `adops_manager` roles can approve or reject it, and every decision requires a written rationale — there is no approve action without one. Re-deciding an already-decided request returns `409 Conflict` rather than overwriting the prior decision. Reviewed in the UI at `/mcp-governance/approvals`.
+
+### Audit Logging
+
+Every tool call inside a governed run is persisted as an `mcp_tool_calls` row (tool name, input JSON, output JSON, status, latency) before any conclusion is reached, alongside the `agent_runs`, `policy_checks`, and `approval_requests`/`blocked_actions` rows that record the run's outcome and any human decision. Nothing is deleted — a full run is reconstructable after the fact at `GET /api/mcp/runs/{id}` or `/mcp-governance/runs/[run_id]`.
+
+### MCP Governance Demo Flow
+
+Campaign 1045 (RheinAuto CTV Launch) is under-delivering. Triggering a governed run against it (`POST /api/mcp/agent/run` or the `/mcp-governance/agent` console) calls `get_campaign_health`, `get_campaign_pacing`, `get_vast_validation_summary`, `get_brand_safety_findings`, and `search_policy_context` in sequence, each logged as it happens. The resulting proposed action scores **HIGH** risk, so the run opens a human approval request instead of returning a bare recommendation. A reviewer approves or rejects it with a rationale at `/mcp-governance/approvals`, and the complete trace — every tool call, the risk score, the policy check, and the human decision — is visible on the run's audit record. Full timed walkthroughs (3-minute and 5-minute) and interview talking points: [Demo Script](./docs/demo-script.md).
 
 ## Architecture
 
@@ -193,7 +218,7 @@ flowchart LR
 
 More detail:
 
-- [Architecture and quality attributes](./docs/ARCHITECTURE.md)
+- [Architecture and quality attributes](./docs/architecture.md)
 - [Block, sequence, trust, deployment, and fallback diagrams](./docs/SYSTEM_DIAGRAMS.md)
 - [Agent prompts, RAG, guardrails, and compute decisions](./docs/AI_AGENT_DESIGN.md)
 
@@ -419,21 +444,31 @@ Either way, a permanent public URL cannot be created from source code alone; it 
 |---|---|
 | [PRD](./docs/PRD.md) | Problem, users, scope, principles, metrics, rollout |
 | [Product strategy](./docs/PRODUCT_STRATEGY.md) | Wedge, buyer, differentiation, monetization, roadmap |
+| [Product case study: MCP governance](./docs/product-case-study.md) | Exec summary, risk engine, approval workflow, audit trail, business value, limitations |
 | [Use cases](./docs/USE_CASES.md) | Priorities, flows, automation boundaries |
 | [Wireframes](./docs/WIREFRAMES.md) | Information architecture and interaction intent |
-| [Architecture](./docs/ARCHITECTURE.md) | Quality attributes, security, operations, deployment |
+| [Architecture](./docs/architecture.md) | System diagram, routes, APIs, database tables, risk model, deployment |
 | [System diagrams](./docs/SYSTEM_DIAGRAMS.md) | Block, sequence, trust, deployment, fallback |
+| [MCP tool registry](./docs/mcp-tool-registry.md) | Every MCP tool's schema, risk level, and error contract |
+| [MCP local setup](./docs/mcp-local-setup.md) | Standalone MCP server install, run, and Inspector commands |
+| [MCP governance backend API](./docs/mcp-governance-api.md) | Migration, seed, and curl examples for `/api/mcp/*` |
 | [AI design](./docs/AI_AGENT_DESIGN.md) | Model boundary, prompts, RAG, guardrails, evaluation |
 | [Evaluation](./docs/EVALUATION_REPORT.md) | Golden set, quality floor, measured limitations |
 | [User research](./docs/USER_RESEARCH.md) | Five-participant study and evidence log |
 | [ROI model](./docs/ROI_MODEL.md) | Value formula, assumptions, pilot measurement |
-| [Demo script](./docs/DEMO_SCRIPT.md) | Two-minute walkthrough |
+| [Demo script](./docs/demo-script.md) | 3-minute and 5-minute MCP governance walkthroughs, interview talking points |
 
 ## Research Status
 
 No genuine customer interviews are claimed. The repository includes a ready-to-run five-participant study, recruitment targets, usability tasks, measures, evidence log, and decision rules. Fabricated interview quotes would contradict the evidence-first product strategy.
 
+## Dataset Disclaimer
+
+Every campaign, advertiser, publisher, creative, VAST error, pacing snapshot, and policy document in this repository is a synthetic fixture generated by `backend/seed.py` (`RANDOM_SEED = 1045`). No live ad server, SSP, or DSP is connected. This project does not claim a real production deployment or real customer usage — it is a portfolio-grade working prototype. See [Known Limitations](#known-limitations) and [Research Status](#research-status) below.
+
 ## Roadmap
+
+MCP-governance-specific roadmap (resources/prompts, hosted MCP endpoint, real policy retrieval, write-path governance, connected pilot): [Product Case Study → Future Roadmap](./docs/product-case-study.md#future-roadmap).
 
 ### Connected pilot
 
@@ -465,7 +500,9 @@ No genuine customer interviews are claimed. The repository includes a ready-to-r
 - VAST checks use controlled synthetic validation rather than fetching arbitrary tags.
 - Demo authentication is not enterprise SSO.
 - No direct mutation of live campaign settings.
-- The tool registry (`GET /api/agent/tools`) documents the bounded tool surface in an MCP-compatible shape; it is not a running MCP server, by deliberate choice (see [Tool Registry And MCP](#tool-registry-and-mcp)).
+- The legacy diagnosis tool registry (`GET /api/agent/tools`) documents that bounded tool surface in an MCP-compatible shape only; it is not a running MCP server. The separate `mcp-server/` package *is* a running MCP server, but is a local-only milestone with no hosted, authenticated endpoint yet (see [MCP Governance](#mcp-governance)).
+- No MCP resources or prompts are exposed yet, only tools (see [MCP Tool Registry](./docs/mcp-tool-registry.md#resources-and-prompts)).
+- The MCP risk engine is a deterministic rule-based scorer, not a trained or learned model, and has not been validated against real incident outcomes (see [Product Case Study → Limitations](./docs/product-case-study.md#limitations)).
 - Public deployment still requires the repository owner to connect a cloud account.
 - The public `/demo` session is read-only by design and rate-limited per IP: it runs the real diagnosis pipeline but never persists an audit log or recommendation change, and cannot approve, reject, or reseed anything. It shares the same seeded dataset as the full login.
 - Render's free tier can cold-start a sleeping backend instance (up to ~60s); the frontend surfaces this as a "waking up" retry state rather than a broken page, but the first request after idle time is still slow.
