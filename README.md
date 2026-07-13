@@ -1,25 +1,38 @@
 # SignalOps AI
 
-### AI-powered campaign delivery intelligence workflow for AdTech operations teams
+### MCP Governance Control Plane for AdOps Agents
 
-SignalOps AI helps campaign operations teams detect delivery risk, diagnose root causes with campaign data and AdOps playbooks, generate client-safe explanations, route recommendations through human approval, and preserve governance records. It combines bounded AdTech analytics tools, vector-retrieved operating playbooks, structured LLM reasoning, evidence validation, human approval, and an audit trail — moving a team from **"this campaign is behind"** to an inspectable root cause and an approved recovery action.
+SignalOps AI is a portfolio-grade AI product demo for CTV/AdOps teams. It shows how an AI agent can investigate campaign delivery risk through controlled MCP tools, policy context, risk scoring, human approval, and full audit traceability.
 
 This is a working product case study — an enterprise-style MVP and portfolio demo, not a chat interface placed over hardcoded answers, and not a claim of production-scale usage.
 
-> **Naming note:** the repository, Vercel project, Render service, and Neon database keep the historical technical name `adops-signal` to avoid breaking deployment URLs and existing infrastructure. The product itself is branded **SignalOps AI** everywhere a user or reviewer sees it (UI, docs, demo).
+> **Naming note:** the repository, Vercel project, Render service, and Neon database use the technical name `adops-signal-mcp-governance`. The product itself is branded **SignalOps AI** everywhere a user or reviewer sees it (UI, docs, demo).
 
-**[Open the public demo (no sign-in)](https://adops-signal.vercel.app/demo)** · **[Full workflow login](https://adops-signal.vercel.app)** · [Backend readiness](https://adops-signal.onrender.com/ready) · [GitHub / local setup](#local-setup)
+## Live Demo
+
+| | |
+|---|---|
+| **Live app** | [adops-signal-mcp-governance.vercel.app/mcp-governance](https://adops-signal-mcp-governance.vercel.app/mcp-governance) |
+| **Backend health** | [adops-signal-mcp-governance.onrender.com/ready](https://adops-signal-mcp-governance.onrender.com/ready) |
+| **Demo login** | `adops@demo.adops.local` / `SignalDemo!2026` |
+| **Repository / local setup** | this repo — see [Local Setup](#local-setup) |
+| **Frontend** | Next.js, hosted on Vercel |
+| **Backend** | FastAPI, hosted on Render |
+| **Database** | Neon Postgres, seeded synthetic demo data |
+
+> **Dataset disclaimer:** Synthetic portfolio environment. No customer, employer, or personal data.
+
+> **Cold start note:** the backend runs on Render's free tier, which can take up to ~60 seconds to wake from idle. The frontend detects this and shows a "waking up" retry state instead of a broken page — give the first request a moment.
 
 [Watch the two-minute narrated demo](./docs/demo/adops-signal-2-minute-demo.mp4) · [Read the PRD](./docs/PRD.md) · [Explore the system diagrams](./docs/SYSTEM_DIAGRAMS.md) · [Review the evaluation](./docs/EVALUATION_REPORT.md)
 
 > **Demo mode:** The recorded demo intentionally runs without an API key and visibly reports `fallback`. Add `OPENAI_API_KEY` to activate structured `llm_rag` diagnosis. Both modes use the same evidence tools, provenance contract, approvals, and audit system.
 
-> **Cold start note:** the backend runs on Render's free tier, which can take up to ~60 seconds to wake from idle. The frontend detects this and shows a "waking up" retry state instead of a broken page — give the first request a moment.
-
 ## Public Portfolio Demo
 
-- **Public demo (no sign-in):** [https://adops-signal.vercel.app/demo](https://adops-signal.vercel.app/demo)
-- **Full workflow login:** [https://adops-signal.vercel.app](https://adops-signal.vercel.app) (demo credentials in [Local Setup](#local-setup))
+- **Public demo (no sign-in):** [https://adops-signal-mcp-governance.vercel.app/demo](https://adops-signal-mcp-governance.vercel.app/demo)
+- **Full workflow login:** [https://adops-signal-mcp-governance.vercel.app](https://adops-signal-mcp-governance.vercel.app) (demo credentials above, or in [Local Setup](#local-setup))
+- **MCP Governance control plane:** [https://adops-signal-mcp-governance.vercel.app/mcp-governance](https://adops-signal-mcp-governance.vercel.app/mcp-governance) — the primary surface described in this README (dashboard, agent console, decision queue, tool registry, governance record)
 
 `/demo` opens straight into the same dashboard as the full product, pre-authenticated as a read-only viewer against the seeded demo dataset. A persistent banner ("Public portfolio demo · sample data · read-only workspace") marks every page. From there, a visitor can browse the risk queue, open any campaign, run a real investigation - bounded tools, RAG playbook retrieval, and structured LLM-or-fallback reasoning, exactly the pipeline the full product uses - generate a client-safe brief, and read the Governance Record.
 
@@ -69,49 +82,39 @@ An AI assistant is valuable here only if it:
 
 These are implemented handoffs, not presentation-only concepts. A browser-tested workflow runs from Campaign 1048 in the risk queue through diagnosis, client brief, controlled approval, and the resulting audit record.
 
-## Product Walkthrough
+## Product Screens
 
-### Campaign health
+Screenshots below are captured directly from the deployed MCP Governance demo at [adops-signal-mcp-governance.vercel.app/mcp-governance](https://adops-signal-mcp-governance.vercel.app/mcp-governance).
 
-Operators start with portfolio risk, not a blank chat box.
+### MCP Governance Dashboard
 
-![Campaign health dashboard](./docs/screenshots/dashboard.png)
+Shows governed agent activity, MCP tool usage, approval volume, blocked risky actions, risk distribution, and recent agent runs.
 
-### Campaign operating context
+![MCP Governance Dashboard](docs/assets/mcp-dashboard.png)
 
-Pacing, eligible supply, bid performance, creative state, and setup are visible before diagnosis.
+### MCP Agent Console
 
-![Campaign detail](./docs/screenshots/campaign-detail.png)
+Runs a governed AdOps investigation through campaign health, pacing, VAST validation, brand safety, policy context, risk scoring, and approval creation.
 
-### Evidence-backed diagnosis
+![MCP Agent Console](docs/assets/mcp-agent-console.png)
 
-The response contains ranked causes, evidence IDs, recommendations, confidence, tools called, retrieved playbooks, model mode, and latency.
+### Decision Queue
 
-![Agent diagnosis](./docs/screenshots/agent-diagnosis.png)
+Human reviewers approve or reject high-risk agent recommendations. Approval records are stored without executing real campaign changes.
 
-### Creative quality
+![Decision Queue](docs/assets/mcp-decision-queue.png)
 
-Approval state and runtime VAST quality remain separate. An approved asset can still require review because of timeout or media errors.
+### MCP Tool Registry
 
-![VAST validator](./docs/screenshots/vast-validator.png)
+Shows each controlled MCP tool, permission level, risk level, approval posture, last used time, and reliability signal.
 
-### Human decision control
+![MCP Tool Registry](docs/assets/mcp-tool-registry.png)
 
-Recommended changes enter a campaign-filtered queue. Approval or rejection requires operator rationale.
+### Governance Record
 
-![Decision queue](./docs/screenshots/decision-queue.png)
+Full trace of a governed run: user query, tool calls, policy checks, risk score, and the resulting approval/blocked-action outcome.
 
-### Governance record
-
-Agent traces and human decisions remain distinct, inspectable events.
-
-![Governance record](./docs/screenshots/governance-record.png)
-
-### Business case
-
-The value model is transparent and editable rather than presented as invented realized savings.
-
-![Business impact model](./docs/screenshots/business-impact.png)
+![Governance Record](docs/assets/governance-record.png)
 
 ## Primary Users
 
@@ -153,7 +156,7 @@ flowchart LR
 
 Every diagnosis response returns the campaign ID, ranked root causes with evidence IDs, confidence, risk level, recommended actions, the exact tool names called, the playbook sources used, and the execution mode (`llm_rag` or `fallback`) — the full path from campaign data to evidence-backed diagnosis is inspectable, not just the final sentence.
 
-The bounded tool set is also enumerable at `GET /api/agent/tools`, described in an MCP-compatible shape (name, description, input schema, output contract) — see [Tool Registry And MCP](#tool-registry-and-mcp) below.
+The bounded tool set is also enumerable at `GET /api/agent/tools`, described in an MCP-compatible shape (name, description, input schema, output contract) — see [MCP Governance](#mcp-governance) below.
 
 ### Reasoning layer
 
@@ -167,7 +170,7 @@ Without a provider key, or when the provider fails, the application returns a cl
 
 ## Why MCP
 
-Giving an agent tool access to real AdTech data is not the hard part — any function-calling harness does that. The hard part is making that tool access **governable**: enumerable (what can the agent call, and what does each call return), attributable (who approved what it proposed), and auditable (what actually happened, in order, with evidence). The Model Context Protocol gives tool calls a standard shape — name, input schema, output contract — which is what makes a generic tool registry, call log, and risk-scoring layer possible to build once and reuse across every future agent, instead of bespoke governance code per agent. See [Product Case Study → Product Decision](./docs/product-case-study.md#product-decision) for the full reasoning.
+Giving an agent tool access to real AdTech data is not the hard part — any function-calling harness does that. The hard part is making that tool access **governable**: enumerable (what can the agent call, and what does each call return), attributable (who approved what it proposed), and auditable (what actually happened, in order, with evidence). The Model Context Protocol gives tool calls a standard shape — name, input schema, output contract — which is what makes a generic tool registry, call log, and risk-scoring layer possible to build once and reuse across every future agent, instead of bespoke governance code per agent. See [Product Case Study → Why MCP](./docs/product-case-study.md#why-mcp) for the full reasoning.
 
 ## MCP Governance
 
@@ -184,7 +187,7 @@ Full tool schemas and example payloads: [MCP Tool Registry](./docs/mcp-tool-regi
 
 ### Governance Model
 
-Every proposed action an agent run produces is scored 0–100 by a deterministic, additive risk function — not a model judgment call — over pacing risk, rejected creatives, VAST error volume, and brand-safety finding severity. LOW/MEDIUM scores return a recommendation with no escalation; HIGH scores require human approval; CRITICAL scores block the action outright and it never reaches the approval queue. See [Architecture → Risk Model](./docs/architecture.md#risk-model) for the exact formula and thresholds, and [Product Case Study → Risk Engine](./docs/product-case-study.md#risk-engine) for why this is rule-based rather than model-scored.
+Every proposed action an agent run produces is scored 0–100 by a deterministic, additive risk function — not a model judgment call — over pacing risk, rejected creatives, VAST error volume, and brand-safety finding severity. LOW/MEDIUM scores return a recommendation with no escalation; HIGH scores require human approval; CRITICAL scores block the action outright and it never reaches the approval queue. See [Architecture → Risk Model](./docs/architecture.md#risk-model) for the exact formula and thresholds, and [Product Case Study → Risk Scoring](./docs/product-case-study.md#risk-scoring) for why this is rule-based rather than model-scored.
 
 ### Human-In-The-Loop Approval
 
@@ -200,21 +203,38 @@ Campaign 1045 (RheinAuto CTV Launch) is under-delivering. Triggering a governed 
 
 ## Architecture
 
+Deployed architecture of the MCP Governance Control Plane — Vercel frontend, Render backend, Neon Postgres, and the governed MCP tool layer:
+
 ```mermaid
-flowchart LR
-    Web["Next.js authenticated UI"] --> Proxy["Same-origin API proxy"]
-    Proxy --> API["FastAPI REST API"]
-    API --> Auth["JWT + RBAC"]
-    API --> Agent["Diagnosis orchestrator"]
-    Agent --> SQL["AdTech analytics tools"]
-    SQL --> DB[("PostgreSQL")]
-    Agent --> Retriever["Vector RAG"]
-    Retriever --> Vector[("pgvector knowledge chunks")]
-    Agent --> Model["OpenAI structured output"]
-    Agent --> Recs[("Recommendations")]
-    Agent --> Logs[("Agent audit logs")]
-    API --> Obs["JSON logs + Prometheus"]
+flowchart TD
+    U[AdOps User / Reviewer] --> V[Vercel Frontend<br/>Next.js UI]
+    V --> P[Next.js API Proxy<br/>/api/proxy]
+    P --> B[Render Backend<br/>FastAPI]
+
+    B --> A[Auth + RBAC]
+    B --> G[MCP Governance APIs]
+    B --> R[Risk Engine]
+    B --> W[Approval Workflow]
+    B --> T[Audit Trail]
+
+    G --> M[MCP Tool Registry]
+    M --> T0[ping_adops_signal]
+    M --> T1[get_campaign_health]
+    M --> T2[get_campaign_pacing]
+    M --> T3[get_vast_validation_summary]
+    M --> T4[get_brand_safety_findings]
+    M --> T5[get_recommendation_history]
+    M --> T6[search_policy_context]
+
+    G --> DB[(Neon Postgres<br/>Synthetic Demo Data)]
+    R --> DB
+    W --> DB
+    T --> DB
+
+    P1[Policy Docs<br/>docs/policies] --> T6
 ```
+
+The separate legacy diagnosis path (bounded tools, RAG, LLM-or-fallback reasoning) predates this MCP work and is described in [How The Agent Works](#how-the-agent-works) above; it shares the same database and deployment but is not part of the MCP governance surface.
 
 More detail:
 
@@ -307,6 +327,59 @@ Password: SignalDemo!2026
 ```
 
 The credentials are intentionally limited to this synthetic portfolio environment. Replace them with SSO/OIDC in a real deployment.
+
+### Native Setup (Without Docker)
+
+Docker Compose above is the recommended path and is what CI verifies. If you'd rather run each service directly against a Postgres instance you manage yourself:
+
+**Backend**
+
+```bash
+cd backend
+source .venv/bin/activate
+python3 -m alembic upgrade head
+python3 seed.py
+python3 -m uvicorn app.main:app --reload --port 8000
+```
+
+Create `backend/.venv` first if it doesn't exist (`python3.12 -m venv backend/.venv && source backend/.venv/bin/activate && pip install -r backend/requirements.txt`), and set `DATABASE_URL` (in `backend/.env` or your shell) to a Postgres instance you're running — outside Docker Compose nothing starts a database server for you.
+
+**Frontend**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Frontend production build**
+
+```bash
+cd frontend
+npm run build
+```
+
+**MCP server tests**
+
+```bash
+cd mcp-server
+source .venv/bin/activate
+python -m pytest
+```
+
+Create `mcp-server/.venv` first if needed — full install, run, and MCP Inspector walkthrough: [MCP Local Setup](./docs/mcp-local-setup.md).
+
+**Backend API health**
+
+```bash
+curl http://localhost:8000/health
+```
+
+**Deployed backend health**
+
+```bash
+curl https://adops-signal-mcp-governance.onrender.com/health
+```
 
 ### Enable LLM + RAG Mode
 
@@ -423,13 +496,37 @@ Automated golden-case evaluation (below) currently covers the original five diag
 
 ## Public Deployment
 
-The live instance runs:
+The live instance runs frontend and backend on separate providers, with a managed Postgres database:
 
-- **Frontend:** Vercel (the same Next.js app as local Docker - `NEXT_PUBLIC_API_BASE_URL`/`API_BASE_URL` point at the Render backend through the same-origin proxy route).
-- **Backend:** Render, deployed from `backend/Dockerfile`.
-- **Database:** Neon (managed Postgres with `pgvector`).
+**Frontend**
 
-`render.yaml` also defines an all-Render Blueprint alternative (managed PostgreSQL, backend Docker service, and a frontend Docker service using the same-origin proxy) if you'd rather not split frontend/backend across two providers. After importing the repository as a Render Blueprint:
+| | |
+|---|---|
+| Provider | Vercel |
+| Root directory | `frontend` |
+| Env var | `API_BASE_URL=https://adops-signal-mcp-governance.onrender.com` |
+
+The same Next.js app as local Docker; `API_BASE_URL` (server-side) and `NEXT_PUBLIC_API_BASE_URL` (client-side) point the same-origin `/api/proxy` route at the Render backend.
+
+**Backend**
+
+| | |
+|---|---|
+| Provider | Render |
+| Runtime | Docker (`backend/Dockerfile`) |
+| Branch | `main` |
+| `DATABASE_URL` | Points at the Neon Postgres connection string |
+| `SEED_DEMO_DATA` | `if-empty` on the hosted demo (seeds once, never wipes on restart); set `true` only for a fresh deploy you want to force-reseed, `false` for a real production deployment |
+| Health check | `/health` (liveness); Render's own `healthCheckPath` in `render.yaml` uses `/ready`, which also checks database connectivity |
+
+**Database**
+
+| | |
+|---|---|
+| Provider | Neon Postgres (with `pgvector`) |
+| Data | Synthetic only, seeded through `backend/seed.py` — see [Dataset Disclaimer](#dataset-disclaimer) |
+
+`render.yaml` also defines an all-Render Blueprint alternative (managed PostgreSQL instead of Neon, backend Docker service, and a frontend Docker service using the same-origin proxy) if you'd rather not split frontend/backend across two providers. After importing the repository as a Render Blueprint:
 
 1. Set backend `FRONTEND_ORIGIN` to the frontend public URL.
 2. Set frontend `API_BASE_URL` to the backend public URL.
@@ -444,7 +541,7 @@ Either way, a permanent public URL cannot be created from source code alone; it 
 |---|---|
 | [PRD](./docs/PRD.md) | Problem, users, scope, principles, metrics, rollout |
 | [Product strategy](./docs/PRODUCT_STRATEGY.md) | Wedge, buyer, differentiation, monetization, roadmap |
-| [Product case study: MCP governance](./docs/product-case-study.md) | Exec summary, risk engine, approval workflow, audit trail, business value, limitations |
+| [Product case study: MCP governance](./docs/product-case-study.md) | Exec summary, problem, why MCP, product workflow, governance model, risk scoring, human approval, audit trail, business value, limitations, roadmap |
 | [Use cases](./docs/USE_CASES.md) | Priorities, flows, automation boundaries |
 | [Wireframes](./docs/WIREFRAMES.md) | Information architecture and interaction intent |
 | [Architecture](./docs/architecture.md) | System diagram, routes, APIs, database tables, risk model, deployment |
@@ -507,6 +604,15 @@ MCP-governance-specific roadmap (resources/prompts, hosted MCP endpoint, real po
 - The public `/demo` session is read-only by design and rate-limited per IP: it runs the real diagnosis pipeline but never persists an audit log or recommendation change, and cannot approve, reject, or reseed anything. It shares the same seeded dataset as the full login.
 - Render's free tier can cold-start a sleeping backend instance (up to ~60s); the frontend surfaces this as a "waking up" retry state rather than a broken page, but the first request after idle time is still slow.
 
-## Why This Project Matters
+## What This Proves
 
-The work demonstrates the full AI-product loop: select a commercially meaningful AdTech problem, define the user and decision, design the human boundary, translate it into a technical system, build the working prototype, instrument quality and value, state what is unvalidated, and provide a credible path from shadow mode to controlled automation.
+This project is a synthetic-data demo workflow, not a production deployment — see [Dataset Disclaimer](#dataset-disclaimer) and [Known Limitations](#known-limitations). Within that scope, it demonstrates:
+
+- **AI product thinking beyond chatbot UI** — the deliverable is a control boundary around an agent's tool access, not a conversational interface over an LLM.
+- **MCP tool governance** — an enumerable, MCP-shaped tool registry with permission level, risk level, and live call/failure tracking, not ad hoc function-calling glue.
+- **Human-in-the-loop decision design** — a deterministic risk score routes proposed actions to no escalation, a required human approval, or an outright block, with no path for an agent to self-approve.
+- **Auditability for agentic workflows** — every tool call, risk score, policy check, and human decision is persisted and reconstructable after the fact via the governance record.
+- **CTV/AdOps domain understanding** — pacing, targeting eligibility, VAST/creative validation, brand safety, and inventory pressure modeled as a realistic, evidence-backed synthetic dataset.
+- **Full-stack product execution** — a working system across frontend (Next.js/Vercel), backend (FastAPI/Render), database (Neon Postgres/pgvector), and deployment, not a slide deck or a local-only script.
+
+The full AI-product loop behind it: select a commercially meaningful AdTech problem, define the user and decision, design the human boundary, translate it into a technical system, build the working prototype, instrument quality and value, state what is unvalidated, and provide a credible path from a controlled agent workflow to a connected pilot.

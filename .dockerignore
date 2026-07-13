@@ -7,5 +7,5 @@
 **/node_modules
 **/.next
 **/*.db
-docs/screenshots
+docs/assets
 docs/demo

@@ -8,20 +8,29 @@ Before recording or presenting: `docker compose up --build`, sign in with the de
 
 ## 3-Minute Version
 
-**0:00–0:25 — Frame the problem.**
-Open `/mcp-governance`. "This is a governance control plane for an AdOps agent — it doesn't just answer questions, it decides when a proposed action needs a human before it can happen. Campaign 1045, RheinAuto's CTV launch, is behind pacing. I'm going to let the agent investigate it live."
+**0:00–0:25 — Open MCP Dashboard.**
+Open `/mcp-governance`. "This is a governance control plane for an AdOps agent — it doesn't just answer questions, it decides when a proposed action needs a human before it can happen."
 
-**0:25–1:20 — Run the investigation.**
-Go to `/mcp-governance/agent`, submit campaign `1045` with a query like "Why is RheinAuto behind pacing and what should we do?" "The agent calls five read-only MCP tools in sequence — campaign health, pacing trend, VAST validation, brand-safety findings, and a keyword search over our governance policy docs. Every call is logged with its input, output, and latency before any conclusion is reached." Point at the tool timeline as it appears.
+**0:25–0:45 — Show tool/risk/approval metrics.**
+Point at the dashboard tiles: run volume, risk mix, pending approvals, blocked actions, tool failure rates. "Before I run anything, this is the operating picture: how much the agent has done, how risky it's been, and what's still waiting on a human."
 
-**1:20–2:00 — Show the risk decision.**
-"The risk engine is a deterministic, additive scoring function — not a model guess. Pacing risk, VAST error count, and brand-safety severity roll up into a 0–100 score. Campaign 1045 lands in the HIGH band, so the agent does not act — it opens an approval request instead." Open the run detail page and show the risk score, band, and the newly created approval request.
+**0:45–1:00 — Open Agent Console.**
+Go to `/mcp-governance/agent`. "Campaign 1045, RheinAuto's CTV launch, is behind pacing. I'm going to let the agent investigate it live."
 
-**2:00–2:45 — Human decision and audit trail.**
-Go to `/mcp-governance/approvals`, open the pending request, approve it with a rationale. "That decision — who approved it, when, and why — is now permanently attached to this run." Open `/mcp-governance/runs/[run_id]` to show the full record: tool calls, risk score, policy check, and the approval decision in one inspectable trace.
+**1:00–1:45 — Run campaign 1045.**
+Submit campaign `1045` with a query like "Why is RheinAuto behind pacing and what should we do?" "The agent calls five read-only MCP tools in sequence — campaign health, pacing trend, VAST validation, brand-safety findings, and a keyword search over our governance policy docs. Every call is logged with its input, output, and latency before any conclusion is reached." Point at the tool timeline as it appears.
 
-**2:45–3:00 — Close.**
-"Nothing here mutates a live campaign, budget, or bid. The agent's only side effects are governance records — a run, a risk score, and a decision that a human made and can be held accountable for."
+**1:45–2:15 — Show risk score and recommendation.**
+"The risk engine is a deterministic, additive scoring function — not a model guess. Pacing risk, VAST error count, and brand-safety severity roll up into a 0–100 score. Campaign 1045 lands in the HIGH band, so the agent does not act — it opens an approval request instead of returning a bare recommendation." Open the run detail page and show the risk score, band, and the newly created approval request.
+
+**2:15–2:35 — Open Decision Queue, show the approval request.**
+Go to `/mcp-governance/approvals`. "This is where a human — an AdOps Manager or Admin, role-gated — decides. Nothing here can approve itself." Open the pending request, approve it with a rationale. "That decision — who approved it, when, and why — is now permanently attached to this run."
+
+**2:35–2:55 — Open Tool Registry, explain controlled tool access.**
+Go to `/mcp-governance/tools`. "Every tool the agent can call is listed here with its permission level, risk level, and live call/failure history. There is no tool in this registry that can mutate a campaign, budget, or bid — that boundary is enforced by what's registered, not by hoping the agent behaves."
+
+**2:55–3:00 — Close.**
+"The agent's only side effects are governance records — a run, a risk score, and a decision that a human made and can be held accountable for."
 
 ## 5-Minute Version
 
@@ -30,23 +39,33 @@ Everything in the 3-minute version, plus:
 **0:00–0:20 — Set up the stakes (before opening the app).**
 "AdOps teams are starting to give agents real tools — query campaign data, check creative validation, search policy. The open question isn't whether the agent can find the right answer. It's what happens the moment its answer implies an action with financial or brand-safety consequences. This project is my answer to that question, built as a working system, not a slide."
 
-**0:20–0:45 — Frame the problem (same as 3-min open).**
+**0:20–1:05 — Open MCP Dashboard, show tool/risk/approval metrics (same as 3-min open).**
 
-**0:45–1:45 — Run the investigation (same as 3-min), with one addition:**
-While the tool timeline runs, open `/mcp-governance/tools` in a second tab briefly. "This is the same tool registry the agent just used — every tool's call count and failure rate is tracked over time, because a governance layer that can't tell you a tool is failing isn't actually governing anything."
+**1:05–1:20 — Open Agent Console (same as 3-min).**
 
-**1:45–2:30 — Show the risk decision (same as 3-min).**
+**1:20–2:05 — Run campaign 1045 (same as 3-min).**
 
-**2:30–3:15 — Contrast with the blocked case.**
+**2:05–2:35 — Show risk score and recommendation (same as 3-min).**
+
+**2:35–3:00 — Open Decision Queue, show the approval request; Open Tool Registry, explain controlled tool access (same as 3-min).**
+
+**3:00–3:20 — Add architecture explanation.**
+Briefly sketch it: "Next.js frontend, FastAPI backend, Postgres database. The frontend never talks to the backend directly — it goes through a same-origin proxy route, so there's one auth boundary, not two. The MCP tool layer sits inside the backend and reuses the same service functions a standalone MCP server (connectable from MCP Inspector or Claude Desktop) also calls, so behavior can't silently diverge between the two surfaces." Point to [Architecture](./architecture.md) if asked for the diagram.
+
+**3:20–3:40 — Explain Render/Vercel/Neon deployment.**
+"This is deployed for real, not just running locally: the frontend is on Vercel, the backend is a Docker image on Render, and the database is managed Postgres on Neon with `pgvector`. The Render free tier can cold-start, so the frontend has a 'waking up' retry state instead of just showing a broken page on the first request."
+
+**3:40–4:00 — Explain why MCP matters.**
+"MCP gives tool calls a standard, inspectable shape — name, input schema, output contract. That's what makes a tool registry, a call log, and a risk engine keyed off tool metadata something you build once and reuse for every future agent, instead of bespoke governance code per agent."
+
+**4:00–4:25 — Contrast with the blocked case.**
 Run a second investigation against campaign `1046` (NordicStream), which has a rejected creative. "This one scores CRITICAL, not HIGH — a rejected creative that must not serve forces the ceiling regardless of the additive score. Notice the difference: HIGH creates an approval request for a human to decide; CRITICAL creates a blocked action that never even reaches the approval queue, because some things shouldn't be one human's call to override casually." Show the `blocked_actions` record on the run detail page.
 
-**3:15–4:00 — Human decision and audit trail (same as 3-min, on the 1045 run).**
+**4:25–4:45 — Explain what is simulated.**
+"To be direct about what's real and what isn't: the workflow, the risk engine, the approval gate, and the audit trail are all real, running code. The campaign data behind them is a synthetic portfolio environment generated by a seed script — there's no live ad server, SSP, or DSP connected, and no real advertiser or customer data anywhere in this system."
 
-**4:00–4:40 — Business framing.**
-Open `/mcp-governance` dashboard. "This view is what a platform lead would actually want: run volume, risk mix, pending approvals, blocked actions, tool failure rates. It's the difference between 'the agent works' and 'I can operate this agent in production.'"
-
-**4:40–5:00 — Close and limitations.**
-"Two things I want to be upfront about: this runs on seeded, synthetic data — there's no live ad server or SSP behind it — and the risk engine is deterministic by design, not an LLM judgment call, because I wanted the governance layer itself to be auditable and reproducible, not another black box sitting on top of the first one."
+**4:45–5:00 — Explain what would be productionized next.**
+"Two things, in order: replace keyword policy search with real retrieval over an expanded, reviewed policy corpus, and connect a read-only real data source behind the same tool contracts, so the governance layer proves out against live data before anyone considers write access."
 
 ## Interview Talking Points
 

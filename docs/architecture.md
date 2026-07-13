@@ -1,6 +1,45 @@
 # Architecture
 
-This document describes the system as it actually exists in this repository: a Next.js frontend, a FastAPI backend, a governed MCP tool surface (both embedded in the backend and as a standalone MCP server), and a PostgreSQL/pgvector data layer. All data is seeded and synthetic — see the [dataset disclaimer](#dataset-disclaimer).
+This document describes the system as it actually exists in this repository: a Next.js frontend on Vercel, a FastAPI backend on Render, a governed MCP tool surface (both embedded in the backend and as a standalone MCP server), and a Neon Postgres/pgvector data layer. All data is seeded and synthetic — see the [dataset disclaimer](#dataset-disclaimer).
+
+## Current Deployment
+
+| Layer | Provider | Notes |
+|---|---|---|
+| Frontend | Vercel | Next.js app at [adops-signal-mcp-governance.vercel.app](https://adops-signal-mcp-governance.vercel.app); calls the backend through the same-origin `/api/proxy/[...path]` route |
+| Backend | Render | FastAPI, deployed from `backend/Dockerfile`, at [adops-signal-mcp-governance.onrender.com](https://adops-signal-mcp-governance.onrender.com); free tier, so a sleeping instance can take up to ~60s to wake |
+| Database | Neon | Managed Postgres with `pgvector`; seeded synthetic demo data only (`backend/seed.py`) |
+
+```mermaid
+flowchart TD
+    U[AdOps User / Reviewer] --> V[Vercel Frontend<br/>Next.js UI]
+    V --> P[Next.js API Proxy<br/>/api/proxy]
+    P --> B[Render Backend<br/>FastAPI]
+
+    B --> A[Auth + RBAC]
+    B --> G[MCP Governance APIs]
+    B --> R[Risk Engine]
+    B --> W[Approval Workflow]
+    B --> T[Audit Trail]
+
+    G --> M[MCP Tool Registry]
+    M --> T0[ping_adops_signal]
+    M --> T1[get_campaign_health]
+    M --> T2[get_campaign_pacing]
+    M --> T3[get_vast_validation_summary]
+    M --> T4[get_brand_safety_findings]
+    M --> T5[get_recommendation_history]
+    M --> T6[search_policy_context]
+
+    G --> DB[(Neon Postgres<br/>Synthetic Demo Data)]
+    R --> DB
+    W --> DB
+    T --> DB
+
+    P1[Policy Docs<br/>docs/policies] --> T6
+```
+
+The standalone MCP server (`mcp-server/`) is not part of this deployed request path — it is a local-only milestone connectable from an MCP client against the same database; see [MCP Local Setup](./mcp-local-setup.md).
 
 ## System Diagram
 
@@ -107,7 +146,7 @@ The standalone server (`mcp-server/adops_signal_mcp/server.py`) exposes 7 read-o
 | `get_recommendation_history` | Prior recommendations and reviewer decisions for a campaign |
 | `search_policy_context` | Keyword search over `docs/policies/*.md` |
 
-None of these tools mutate data. There is no MCP tool that changes a campaign, approves a recommendation, or writes budget/pacing/targeting — that boundary is intentional (see [Governance Model](./product-case-study.md#risk-engine)).
+None of these tools mutate data. There is no MCP tool that changes a campaign, approves a recommendation, or writes budget/pacing/targeting — that boundary is intentional (see [Governance Model](./product-case-study.md#governance-model)).
 
 ## Database Tables
 
@@ -233,9 +272,9 @@ For a real deployment, replace demo credentials with enterprise SSO/OIDC, rotate
 
 Development Compose sets `SEED_DEMO_DATA=true`. Production must set it to `false`; otherwise startup would intentionally reset demo data. `start.sh` applies Alembic migrations before serving traffic.
 
-## Deployment
+## Future Production Hardening
 
-Recommended production shape (not what is currently deployed — see [Known Limitations](../README.md#known-limitations)):
+Recommended production shape beyond the current Vercel/Render/Neon deployment described in [Current Deployment](#current-deployment) above (see also [Known Limitations](../README.md#known-limitations)):
 
 - Managed TLS and edge protection.
 - Independently scalable frontend and backend containers.
