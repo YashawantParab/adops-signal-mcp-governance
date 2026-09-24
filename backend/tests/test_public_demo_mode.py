@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.agent import AdOpsSignalAgent
 from app.api.actions import propose
 from app.api.mcp import run_mcp_agent
+from app.api.mcp_tokens import create_mcp_token
 from app.database import Base
 from app.models import (
     ActionExecution,
@@ -16,12 +17,13 @@ from app.models import (
     BlockedAction,
     Campaign,
     GateDecision,
+    MCPAccessToken,
     MCPToolCall,
     PolicyCheck,
     ProposedAction,
     Recommendation,
 )
-from app.schemas import MCPAgentRunRequest, ProposeActionRequest
+from app.schemas import CreateMCPTokenRequest, MCPAgentRunRequest, ProposeActionRequest
 from app.security import (
     DEMO_VIEWER_ROLE,
     build_demo_viewer,
@@ -146,3 +148,17 @@ def test_demo_viewer_cannot_propose_a_synthetic_action(tmp_path):
 
     assert db.execute(select(ProposedAction)).first() is None
     assert db.execute(select(ActionExecution)).first() is None
+
+
+def test_demo_viewer_cannot_create_a_hosted_mcp_token(tmp_path):
+    db = session_with_seed(tmp_path)
+    demo_user = build_demo_viewer()
+
+    with pytest.raises(HTTPException) as excinfo:
+        create_mcp_token(
+            CreateMCPTokenRequest(name="Should not be created"),
+            db=db,
+            user=require_roles("admin")(user=demo_user),
+        )
+    assert excinfo.value.status_code == 403
+    assert db.execute(select(MCPAccessToken)).first() is None

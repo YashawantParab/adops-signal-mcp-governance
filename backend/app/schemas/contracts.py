@@ -534,3 +534,28 @@ class ProposedActionRead(BaseModel):
     executions: list[ActionExecutionRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- Hosted external MCP tokens (Phase 3F) -----------------------------------
+
+
+class CreateMCPTokenRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    scope: str = Field(default="read", pattern="^read$")
+    rate_limit_per_minute: int = Field(default=30, ge=1, le=600)
+
+
+class MCPAccessTokenRead(BaseModel):
+    id: int
+    name: str
+    scope: str
+    rate_limit_per_minute: int
+    is_active: bool
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MCPAccessTokenCreated(MCPAccessTokenRead):
+    token: str  # shown exactly once

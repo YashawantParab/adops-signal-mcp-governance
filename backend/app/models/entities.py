@@ -434,3 +434,38 @@ class ActionRollback(Base):
 
     action_execution: Mapped[ActionExecution] = relationship(back_populates="rollbacks")
     actor: Mapped["User"] = relationship()
+
+
+class MCPAccessToken(Base):
+    """A scoped bearer token for the hosted, external, read-only MCP endpoint
+    (Phase 3F). Only a salted hash is ever stored - the raw token is shown
+    once, at creation, and never again."""
+
+    __tablename__ = "mcp_access_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    scope: Mapped[str] = mapped_column(String(40), nullable=False, default="read")
+    rate_limit_per_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+
+class ExternalMCPCall(Base):
+    """Audit row for every request the hosted external MCP endpoint receives -
+    written before the request is forwarded, exactly like the internal
+    governance_wrapper's mcp_tool_calls pattern (Phase 1)."""
+
+    __tablename__ = "external_mcp_calls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_id: Mapped[Optional[int]] = mapped_column(ForeignKey("mcp_access_tokens.id"), index=True)
+    method: Mapped[str] = mapped_column(String(80), nullable=False)  # JSON-RPC method, e.g. "tools/call"
+    tool_name: Mapped[Optional[str]] = mapped_column(String(120))
+    status_code: Mapped[Optional[int]] = mapped_column(Integer)
+    latency_ms: Mapped[Optional[int]] = mapped_column(Integer)
+    client_host: Mapped[Optional[str]] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)

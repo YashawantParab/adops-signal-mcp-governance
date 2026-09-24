@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     jev_model: Optional[str] = None
     jev_timeout_seconds: float = 10.0
 
+    # Hosted external MCP (Phase 3F). Comma-separated extra Host header values
+    # the DNS-rebinding protection should accept beyond its safe localhost
+    # defaults - set to the real deployed hostname(s) in production, e.g.
+    # "adops-signal-mcp-governance.onrender.com".
+    external_mcp_allowed_hosts: str = ""
+
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 480

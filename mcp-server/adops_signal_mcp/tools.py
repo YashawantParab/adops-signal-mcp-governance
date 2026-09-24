@@ -613,3 +613,60 @@ def search_policy_context(query: str) -> dict[str, Any]:
             "Policy context search failed.",
             {"exception": exc.__class__.__name__},
         )
+
+
+# --- MCP resources and prompts (Phase 3G) ------------------------------------
+#
+# Resources are addressable, readable state (as opposed to tools, which are
+# invoked with arbitrary arguments). Both reuse the existing tool functions
+# above rather than querying the database a second, divergent way - see
+# docs/mcp-tool-registry.md "Adding a New Tool" for why that matters here too.
+
+import json as _json  # noqa: E402
+
+
+def campaign_summary_resource(campaign_id: str) -> str:
+    """Backing function for the campaign://{campaign_id}/summary MCP resource.
+    Resource URI template parameters always arrive as strings (unlike typed
+    tool arguments), so this converts before delegating to the same
+    get_campaign_health tool function the campaign:// resource mirrors."""
+    try:
+        parsed_id = int(campaign_id)
+    except (TypeError, ValueError):
+        return _json.dumps(_error("INVALID_CAMPAIGN_ID", "campaign_id must be an integer.", {"received": campaign_id}))
+    payload = get_campaign_health(parsed_id)
+    return _json.dumps(payload, indent=2)
+
+
+def policy_document_resource(filename: str) -> str:
+    """Backing function for the policy://{filename} MCP resource. Serves the raw
+    markdown of one file in docs/policies/ - the same corpus search_policy_context
+    searches, addressable directly rather than only via keyword search."""
+    if "/" in filename or ".." in filename or not filename.endswith(".md"):
+        return _json.dumps(_error("INVALID_POLICY_FILENAME", "filename must be a bare *.md file name."))
+    path = Path(POLICY_DIR) / filename
+    if not path.is_file():
+        return _json.dumps(_error("POLICY_FILE_NOT_FOUND", f"'{filename}' was not found.", {"policy_dir": str(POLICY_DIR)}))
+    return path.read_text(encoding="utf-8")
+
+
+def investigate_campaign_delivery_prompt(campaign_id: str) -> str:
+    """Backing function for the investigate_campaign_delivery MCP prompt - packages
+    the same investigative sequence the governed agent runs (Phase 1) into a
+    reusable prompt template for any MCP client, WITHOUT bypassing governance:
+    this only suggests which read-only tools to call and in what order: the
+    governance wrapper (registry/permission/scope validation, audit logging)
+    still gates every actual tool call a client makes as a result."""
+    return (
+        f"Investigate why campaign {campaign_id} may be underdelivering. Call these read-only tools, "
+        "in order, to gather evidence before concluding anything:\n"
+        "1. get_campaign_health - overall pacing, risk level, and the main suspected issue\n"
+        "2. get_campaign_pacing - delivery trend over time\n"
+        "3. get_vast_validation_summary - creative approval state and VAST errors\n"
+        "4. get_brand_safety_findings - deterministic brand-safety findings\n"
+        "5. get_recommendation_history - what has already been recommended and decided\n"
+        "6. search_policy_context - relevant governance policy for the suspected issue\n\n"
+        "Cite the specific field(s) from each tool's response that support any conclusion you draw. "
+        "Do not propose executing a change - only diagnose and recommend; execution requires a human "
+        "approval step outside this MCP surface."
+    )
