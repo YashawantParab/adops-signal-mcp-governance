@@ -90,5 +90,17 @@
     "expected_all": ["Shared inventory pressure"],
     "required_evidence_terms": ["high priority", "other campaigns"],
     "expected_playbook_source": "inventory_targeting.md"
+  },
+  {
+    "id": "G16",
+    "campaign_id": 1050,
+    "query": "Are our bids competitive with publisher floors?",
+    "expected_all": ["Bid price below floor"]
+  },
+  {
+    "id": "G17",
+    "campaign_id": 1051,
+    "query": "Did the campaign start late?",
+    "expected_all": ["Campaign started late"]
   }
 ]
