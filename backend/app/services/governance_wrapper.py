@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.mcp_client import MCPAgentClient, MCPClientError
 from app.models import MCPToolCall
-from app.services.mcp_governance_service import MCP_TOOL_DESCRIPTORS
+from app.services.mcp_tool_registry import MCP_TOOL_DESCRIPTORS
 
 READ_ONLY_PERMISSION = "read"
 

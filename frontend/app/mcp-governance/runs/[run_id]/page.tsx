@@ -74,6 +74,53 @@ export default function MCPGovernanceRunDetailPage() {
         </div>
       </section>
 
+      <section className="panel mb-6 rounded-md p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="text-xs font-semibold uppercase text-accent">Execution</p>
+          <RiskBadge value={run.execution_mode} />
+        </div>
+        {run.execution_mode === "llm_mcp_agent" ? (
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Provider / model</p>
+              <p className="mt-1 font-medium text-ink">
+                {run.llm_provider ?? "unknown"}
+                {run.model_name ? ` · ${run.model_name}` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Steps used</p>
+              <p className="mt-1 font-medium text-ink">
+                {run.steps_used ?? "—"}
+                {run.max_steps ? ` / ${run.max_steps} max` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Tokens (in / out / total)</p>
+              <p className="mt-1 font-medium text-ink">
+                {run.input_tokens ?? "—"} / {run.output_tokens ?? "—"} / {run.total_tokens ?? "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Estimated cost</p>
+              <p className="mt-1 font-medium text-ink">
+                {run.estimated_cost_usd != null ? `$${run.estimated_cost_usd.toFixed(4)}` : "not available"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-600">
+            Ran the deterministic rule-based orchestration instead of the governed LLM + MCP agent.
+            {run.fallback_reason ? (
+              <>
+                {" "}
+                Reason: <span className="font-mono text-xs">{run.fallback_reason}</span>.
+              </>
+            ) : null}
+          </p>
+        )}
+      </section>
+
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <section className="panel rounded-md p-5">
           <p className="text-xs font-semibold uppercase text-accent">Governance</p>

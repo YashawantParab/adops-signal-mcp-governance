@@ -159,6 +159,7 @@ export default function MCPGovernanceDashboardPage() {
                   <tr>
                     <th className="px-4 py-3">Run</th>
                     <th className="px-4 py-3">Campaign</th>
+                    <th className="px-4 py-3">Mode</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Risk</th>
                     <th className="px-4 py-3">Created</th>
@@ -174,6 +175,9 @@ export default function MCPGovernanceDashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-700">
                         {run.campaign_name ?? `Campaign ${run.campaign_id}`}
+                      </td>
+                      <td className="px-4 py-3">
+                        <RiskBadge value={run.execution_mode} />
                       </td>
                       <td className="px-4 py-3">
                         <RiskBadge value={run.status} />

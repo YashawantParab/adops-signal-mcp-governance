@@ -264,6 +264,17 @@ export interface MCPAgentRunResponse {
   blocked: boolean;
   final_recommendation: string;
   tool_timeline: MCPToolTimelineEntry[];
+  execution_mode: "llm_mcp_agent" | "deterministic_fallback";
+  llm_provider?: string | null;
+  model_name?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  estimated_cost_usd?: number | null;
+  steps_used?: number | null;
+  max_steps?: number | null;
+  fallback_reason?: string | null;
+  tools_selected: string[];
 }
 
 export interface MCPToolCall {
@@ -274,6 +285,7 @@ export interface MCPToolCall {
   output_json: Record<string, unknown>;
   status: string;
   latency_ms: number;
+  error_category?: string | null;
   created_at: string;
 }
 
@@ -324,6 +336,16 @@ export interface MCPAgentRun {
   approval_required: boolean;
   created_at: string;
   completed_at?: string | null;
+  execution_mode: "llm_mcp_agent" | "deterministic_fallback";
+  llm_provider?: string | null;
+  model_name?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  estimated_cost_usd?: number | null;
+  steps_used?: number | null;
+  max_steps?: number | null;
+  fallback_reason?: string | null;
 }
 
 export interface MCPAgentRunDetail extends MCPAgentRun {

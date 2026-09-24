@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 COPY data /repo/data
+COPY docs /repo/docs
+COPY mcp-server /repo/mcp-server
 
 RUN chmod +x /repo/backend/start.sh
 

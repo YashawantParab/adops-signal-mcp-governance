@@ -23,7 +23,9 @@ const styles: Record<string, string> = {
   blocked: "border-red-300 bg-red-100 text-red-800",
   completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   failed: "border-red-200 bg-red-50 text-red-700",
-  running: "border-slate-200 bg-slate-50 text-slate-600"
+  running: "border-slate-200 bg-slate-50 text-slate-600",
+  llm_mcp_agent: "border-teal-200 bg-teal-50 text-teal-700",
+  deterministic_fallback: "border-slate-200 bg-slate-50 text-slate-600"
 };
 
 export function RiskBadge({ value }: { value: RiskLevel | string }) {

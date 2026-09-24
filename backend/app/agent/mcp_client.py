@@ -69,7 +69,16 @@ class MCPAgentClient:
             command=command_parts[0],
             args=command_parts[1:] + args,
             cwd=str(server_dir),
-            env={**get_default_environment(), "MCP_TRANSPORT": "stdio", **self._extra_env},
+            # get_default_environment() only inherits a safe OS allowlist (PATH, HOME, ...)
+            # - it deliberately does NOT include DATABASE_URL, so without setting it
+            # explicitly here the mcp-server subprocess would silently fall back to its
+            # own default sqlite path instead of this deployment's real database.
+            env={
+                **get_default_environment(),
+                "MCP_TRANSPORT": "stdio",
+                "DATABASE_URL": self._settings.database_url,
+                **self._extra_env,
+            },
         )
         try:
             read_stream, write_stream = await self._exit_stack.enter_async_context(stdio_client(params))

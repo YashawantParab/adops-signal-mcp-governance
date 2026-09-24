@@ -18,6 +18,7 @@ into the persisted fallback_reason - never a silent, unexplained fallback.
 from __future__ import annotations
 
 import asyncio
+import functools
 import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -172,13 +173,24 @@ async def _run_loop(
             total_output_tokens = 0
             next_evidence_number = 1
 
+            loop = asyncio.get_running_loop()
             for step in range(1, settings.max_agent_steps + 1):
                 try:
-                    step_result = provider.decide_next_step(
-                        system_prompt=SYSTEM_PROMPT,
-                        initial_query=f"Investigate campaign {campaign_id}. Operator question: {user_query}",
-                        history=history,
-                        tools=tools,
+                    # Provider SDKs make a blocking synchronous HTTP call here. Running
+                    # it inline would stall the event loop for the call's full duration,
+                    # so asyncio.wait_for's outer timeout (see run_governed_mcp_agent)
+                    # could never actually preempt a slow/hung provider - it can only
+                    # cancel at an await point, and there would be none. Executing it in
+                    # a thread keeps this step a real await point.
+                    step_result = await loop.run_in_executor(
+                        None,
+                        functools.partial(
+                            provider.decide_next_step,
+                            system_prompt=SYSTEM_PROMPT,
+                            initial_query=f"Investigate campaign {campaign_id}. Operator question: {user_query}",
+                            history=history,
+                            tools=tools,
+                        ),
                     )
                 except ProviderError as exc:
                     raise AgentTerminated("provider_error", str(exc)) from exc

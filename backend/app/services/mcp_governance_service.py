@@ -40,6 +40,7 @@ from app.schemas import (
 )
 from app.services.campaign_service import get_campaign_health as compute_campaign_health, get_campaign_or_none
 from app.services.json_fields import parse_list
+from app.services.mcp_tool_registry import MCP_TOOL_DESCRIPTORS
 from app.services.recommendation_service import list_recommendations
 from app.services.vast_service import suggested_fix_for_errors
 from app.time_utils import utc_now
@@ -57,80 +58,6 @@ class InvalidCampaignIdError(ValueError):
 
 class CampaignNotFoundError(ValueError):
     pass
-
-
-MCP_TOOL_DESCRIPTORS = [
-    MCPToolRead(
-        name="ping_adops_signal",
-        description="Checks MCP server and SignalOps AI data-store readiness.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {}, "additionalProperties": False},
-        output_contract="Structured JSON readiness payload or typed error.",
-        category="System",
-        permission_level="read",
-        risk_level="Low",
-    ),
-    MCPToolRead(
-        name="get_campaign_health",
-        description="Returns campaign health, pacing, inventory, creative, VAST, and bid summary.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {"campaign_id": {"type": "integer", "minimum": 1}}},
-        output_contract="Structured JSON campaign and health payload or typed error.",
-        category="Campaign Signals",
-        permission_level="read",
-        risk_level="Low",
-    ),
-    MCPToolRead(
-        name="get_campaign_pacing",
-        description="Returns latest and historical pacing snapshots for one campaign.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {"campaign_id": {"type": "integer", "minimum": 1}}},
-        output_contract="Structured JSON pacing payload or typed error.",
-        category="Campaign Signals",
-        permission_level="read",
-        risk_level="Low",
-    ),
-    MCPToolRead(
-        name="get_vast_validation_summary",
-        description="Summarizes creative approval state and persisted VAST validation errors.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {"campaign_id": {"type": "integer", "minimum": 1}}},
-        output_contract="Structured JSON VAST validation payload or typed error.",
-        category="Creative Governance",
-        permission_level="read",
-        risk_level="Low",
-    ),
-    MCPToolRead(
-        name="get_brand_safety_findings",
-        description="Returns deterministic brand-safety governance findings from existing campaign data.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {"campaign_id": {"type": "integer", "minimum": 1}}},
-        output_contract="Structured JSON findings payload or typed error.",
-        category="Brand Safety",
-        permission_level="read",
-        risk_level="Medium",
-    ),
-    MCPToolRead(
-        name="get_recommendation_history",
-        description="Returns recommendation history and reviewer metadata for one campaign.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {"campaign_id": {"type": "integer", "minimum": 1}}},
-        output_contract="Structured JSON recommendation history payload or typed error.",
-        category="Governance History",
-        permission_level="read",
-        risk_level="Low",
-    ),
-    MCPToolRead(
-        name="search_policy_context",
-        description="Searches local governance policy markdown using keyword retrieval.",
-        read_only=True,
-        input_schema={"type": "object", "properties": {"query": {"type": "string", "minLength": 1}}},
-        output_contract="Structured JSON policy matches or typed error.",
-        category="Policy",
-        permission_level="read",
-        risk_level="Low",
-    ),
-]
 
 
 def _approval_to_read(approval: ApprovalRequest) -> ApprovalRequestRead:
@@ -868,6 +795,8 @@ def run_deterministic_fallback_orchestration(
             blocked=False,
             final_recommendation=run.final_recommendation,
             tool_timeline=timeline,
+            execution_mode=run.execution_mode,
+            fallback_reason=run.fallback_reason,
         )
 
     risk_score, risk_level = _score_risk(health, vast_output, brand_output)
@@ -966,4 +895,6 @@ def run_deterministic_fallback_orchestration(
         blocked=blocked,
         final_recommendation=final_recommendation,
         tool_timeline=timeline,
+        execution_mode=run.execution_mode,
+        fallback_reason=run.fallback_reason,
     )

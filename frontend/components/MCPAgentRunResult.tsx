@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, History, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Cpu, History, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { formatDateTime, formatReviewer } from "@/lib/api";
 import type { MCPAgentRunDetail, MCPAgentRunResponse, MCPToolDescriptor } from "@/types";
@@ -142,6 +142,60 @@ export function MCPAgentRunResult({
           Agent run #{result.agent_run_id}
           {detail?.created_at ? ` · ${formatDateTime(detail.created_at)}` : ""}
         </p>
+      </section>
+
+      {/* 1b. Execution Mode */}
+      <section className="panel rounded-md p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase text-accent">Execution</p>
+            <h3 className="mt-1 flex items-center gap-2 text-base font-semibold">
+              <Cpu size={16} className="text-slate-500" aria-hidden="true" />
+              {result.execution_mode === "llm_mcp_agent" ? "Governed LLM + MCP Agent" : "Deterministic Fallback"}
+            </h3>
+          </div>
+          <RiskBadge value={result.execution_mode} />
+        </div>
+        {result.execution_mode === "llm_mcp_agent" ? (
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Provider / model</p>
+              <p className="mt-1 font-medium text-ink">
+                {result.llm_provider ?? "unknown"}
+                {result.model_name ? ` · ${result.model_name}` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Steps used</p>
+              <p className="mt-1 font-medium text-ink">
+                {result.steps_used ?? "—"}
+                {result.max_steps ? ` / ${result.max_steps} max` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Tokens (in / out / total)</p>
+              <p className="mt-1 font-medium text-ink">
+                {result.input_tokens ?? "—"} / {result.output_tokens ?? "—"} / {result.total_tokens ?? "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-slate-500">Tools selected by the model</p>
+              <p className="mt-1 font-medium text-ink">
+                {result.tools_selected.length ? result.tools_selected.join(" → ") : "none"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-600">
+            Ran the deterministic rule-based orchestration instead of the governed LLM + MCP agent.
+            {result.fallback_reason ? (
+              <>
+                {" "}
+                Reason: <span className="font-mono text-xs">{result.fallback_reason}</span>.
+              </>
+            ) : null}
+          </p>
+        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
