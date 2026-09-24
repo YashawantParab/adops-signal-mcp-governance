@@ -275,6 +275,30 @@ export interface MCPAgentRunResponse {
   max_steps?: number | null;
   fallback_reason?: string | null;
   tools_selected: string[];
+  client_safe_brief?: string | null;
+  client_safe_brief_status?: "safe" | "needs_review" | "block" | null;
+  gate_decisions: MCPGateDecision[];
+}
+
+export interface MCPGateDecision {
+  id: number;
+  agent_run_id: number;
+  campaign_id?: number | null;
+  decision_point: "risk_routing" | "evidence_verification" | "client_safe_brief" | string;
+  gate_type: "jev" | "llm" | "rules";
+  provider?: string | null;
+  model_name?: string | null;
+  decision: string;
+  probability?: number | null;
+  confidence?: number | null;
+  rule_floor?: string | null;
+  final_decision: string;
+  latency_ms: number;
+  estimated_cost_usd?: number | null;
+  input_reference?: string | null;
+  metadata_json?: Record<string, unknown> | null;
+  schema_version: string;
+  created_at: string;
 }
 
 export interface MCPToolCall {
@@ -346,6 +370,18 @@ export interface MCPAgentRun {
   steps_used?: number | null;
   max_steps?: number | null;
   fallback_reason?: string | null;
+  client_safe_brief?: string | null;
+  client_safe_brief_status?: "safe" | "needs_review" | "block" | null;
+}
+
+export interface RunFeedback {
+  id: number;
+  agent_run_id: number;
+  user_id: number;
+  reviewer_name?: string | null;
+  rating: "up" | "down";
+  comment?: string | null;
+  created_at: string;
 }
 
 export interface MCPAgentRunDetail extends MCPAgentRun {
@@ -353,6 +389,62 @@ export interface MCPAgentRunDetail extends MCPAgentRun {
   approval_requests: MCPApprovalRequest[];
   policy_checks: MCPPolicyCheck[];
   blocked_actions: MCPBlockedAction[];
+  gate_decisions: MCPGateDecision[];
+  feedback: RunFeedback[];
+}
+
+// --- Synthetic action execution (Phase 3) -----------------------------------
+
+export type ActionType = "adjust_frequency_cap" | "relax_device_constraint" | "pause_campaign" | "resume_campaign";
+
+export interface ActionVerification {
+  id: number;
+  action_execution_id: number;
+  expected_state: Record<string, unknown>;
+  actual_state: Record<string, unknown>;
+  verification_status: "verified" | "mismatch";
+  mismatch_reason?: string | null;
+  verified_at: string;
+}
+
+export interface ActionRollback {
+  id: number;
+  action_execution_id: number;
+  rolled_back_by: number;
+  restored_state: Record<string, unknown>;
+  actual_state_after: Record<string, unknown>;
+  verification_status: "verified" | "mismatch";
+  rolled_back_at: string;
+}
+
+export interface ActionExecution {
+  id: number;
+  proposed_action_id: number;
+  executed_by: number;
+  before_state: Record<string, unknown>;
+  after_state: Record<string, unknown>;
+  status: "executed" | "failed";
+  error_message?: string | null;
+  executed_at: string;
+  verifications: ActionVerification[];
+  rollbacks: ActionRollback[];
+}
+
+export interface ProposedAction {
+  id: number;
+  campaign_id: number;
+  campaign_name?: string | null;
+  agent_run_id?: number | null;
+  approval_request_id?: number | null;
+  action_type: ActionType | string;
+  requested_params: Record<string, unknown>;
+  risk_class: string;
+  status: "proposed" | "pending_approval" | "approved" | "executed" | "verified" | "failed" | "rolled_back" | "blocked";
+  proposed_by: string;
+  created_at: string;
+  updated_at: string;
+  approval_status?: string | null;
+  executions: ActionExecution[];
 }
 
 export interface MCPSummary {

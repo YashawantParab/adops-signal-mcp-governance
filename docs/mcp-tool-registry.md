@@ -85,14 +85,23 @@ This is not itself an MCP tool — it is the deterministic orchestration endpoin
 
 It then scores risk, derives a proposed action from any pending recommendation (or a generic root-cause statement), writes a `policy_checks` row, and — depending on the risk band — writes an `approval_requests` or `blocked_actions` row. Full request/response examples and curl commands are in [MCP Governance Backend API](./mcp-governance-api.md).
 
-## Resources and Prompts
+## Resources and Prompts (added in Phase 3)
 
-Neither MCP surface currently declares MCP **resources** (addressable, subscribable data, e.g. `campaign://1045/health`) or MCP **prompts** (reusable prompt templates served through the protocol). Both are natural next steps discussed in [Product Case Study → Future Roadmap](./product-case-study.md#future-roadmap):
+The standalone MCP server now declares two MCP **resources** and one MCP **prompt**, in addition to its seven tools, backed by the same functions the tools call (`mcp-server/adops_signal_mcp/tools.py`):
 
-- A `campaign://` resource scheme would let an MCP client browse campaign state directly, rather than only calling tools.
-- A `diagnose-underdelivery` prompt template would package the exact investigative sequence `run_agent_orchestration` runs today into a reusable MCP prompt, so any MCP client — not just this product's own UI — could trigger the same governed investigation.
+- `campaign://{campaign_id}/summary` — the same structured payload `get_campaign_health` returns, addressable directly rather than only via a tool call.
+- `policy://{filename}` — the raw markdown of one file in `docs/policies/*.md` (the same corpus `search_policy_context` searches), with filename validation that rejects path traversal and non-`.md` names.
+- `investigate_campaign_delivery` (prompt, takes `campaign_id`) — packages the exact investigative tool sequence the governed agent runs into a reusable template for any MCP client. It only suggests which read-only tools to call and in what order; it does not bypass governance — every tool call it leads to still passes through the normal registry/permission/scope validation.
 
-Today, every capability is exposed as a tool call, which is sufficient for the current scope but is explicitly called out here rather than left as a silent gap.
+## Hosted External MCP (Phase 3F)
+
+`POST /mcp/external` on the deployed backend mounts this same FastMCP instance over Streamable HTTP for external MCP clients (MCP Inspector, Claude Desktop, or any other MCP host) — see [MCP Local Setup](./mcp-local-setup.md) for connection instructions. It is:
+
+- **Authenticated**: a bearer token minted via `POST /api/mcp-tokens` (admin/adops_manager only); the raw token is shown exactly once at creation and only a SHA-256 hash is ever stored (`backend/app/services/mcp_token_service.py`).
+- **Rate-limited**: per-token, configurable at creation (`rate_limit_per_minute`), enforced before the request reaches the MCP session manager.
+- **Read-only**: this is the same tool/resource/prompt set as the stdio path above — there is no write tool to expose, so this boundary is structural, not just a permission check.
+- **Audited**: every request (method, tool name where applicable, status code, latency) is logged to `external_mcp_calls`, keyed to the token, before the request is forwarded (`backend/app/hosted_mcp.py::ExternalMCPAuthMiddleware`).
+- **Never** a path to any of this product's write endpoints (actions, approvals, agent runs, feedback) — those are separate FastAPI routers under `/api/*`, entirely unreachable through the mounted MCP app.
 
 ## Adding a New Tool
 

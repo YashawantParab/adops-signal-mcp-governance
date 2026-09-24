@@ -23,6 +23,7 @@ from app.models.entities import (
     ProposedAction,
     Publisher,
     Recommendation,
+    RunFeedback,
     User,
     VastValidationError,
 )
@@ -52,6 +53,7 @@ __all__ = [
     "ProposedAction",
     "Publisher",
     "Recommendation",
+    "RunFeedback",
     "User",
     "VastValidationError",
 ]

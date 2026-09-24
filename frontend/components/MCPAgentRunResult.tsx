@@ -198,6 +198,28 @@ export function MCPAgentRunResult({
         )}
       </section>
 
+      {/* 1c. Decision Gates (compact) */}
+      {result.gate_decisions.length ? (
+        <section className="panel rounded-md p-5">
+          <p className="text-xs font-semibold uppercase text-accent">System 1</p>
+          <h3 className="mt-1 text-base font-semibold">Decision Gates</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {result.gate_decisions.map((gate) => (
+              <span
+                key={gate.id}
+                className="inline-flex items-center gap-1 rounded-md border border-line bg-slate-50 px-2 py-1 text-xs"
+                title={`${gate.gate_type} gate · ${gate.decision}${gate.confidence != null ? ` (${(gate.confidence * 100).toFixed(0)}%)` : ""}`}
+              >
+                <span className="font-medium text-slate-700">{gate.decision_point.replaceAll("_", " ")}</span>
+                <span className="text-slate-400">→</span>
+                <span className="font-semibold text-ink">{gate.final_decision}</span>
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Full gate detail, including rule floor and any escalation, is in the Governance Record.</p>
+        </section>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {/* 2. Campaign Health */}
         <SectionShell eyebrow="Signal" title="Campaign Health" right={health ? <RiskBadge value={health.risk_level} /> : undefined}>

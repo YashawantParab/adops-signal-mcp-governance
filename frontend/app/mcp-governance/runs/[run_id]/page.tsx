@@ -2,22 +2,41 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldAlert, ShieldCheck, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useAuth } from "@/components/AuthProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { RiskBadge } from "@/components/RiskBadge";
 import { ErrorState, LoadingState } from "@/components/StateViews";
-import { api, formatDateTime, formatReviewer } from "@/lib/api";
+import { api, DEMO_VIEWER_ROLE, formatDateTime, formatReviewer } from "@/lib/api";
 import type { MCPAgentRunDetail } from "@/types";
 
 export default function MCPGovernanceRunDetailPage() {
   const params = useParams<{ run_id: string }>();
   const runId = Number(params.run_id);
+  const { user } = useAuth();
+  const isDemoViewer = user?.role === DEMO_VIEWER_ROLE;
 
   const [run, setRun] = useState<MCPAgentRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [comment, setComment] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+  async function sendFeedback(rating: "up" | "down") {
+    if (isDemoViewer) return;
+    setSubmittingFeedback(true);
+    try {
+      await api.submitRunFeedback(runId, rating, comment.trim() || undefined);
+      setComment("");
+      load();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  }
 
   function load() {
     if (!Number.isFinite(runId)) {
@@ -120,6 +139,58 @@ export default function MCPGovernanceRunDetailPage() {
           </p>
         )}
       </section>
+
+      {run.gate_decisions.length ? (
+        <section className="panel mb-6 rounded-md p-5">
+          <p className="text-xs font-semibold uppercase text-accent">System 1</p>
+          <h2 className="mt-1 text-base font-semibold">Decision Gates</h2>
+          <div className="mt-3 space-y-2">
+            {run.gate_decisions.map((gate) => (
+              <div key={gate.id} className="rounded-md border border-line p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-ink">{gate.decision_point.replaceAll("_", " ")}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-md border border-line bg-slate-50 px-2 py-1 text-xs font-medium uppercase text-slate-600">
+                      {gate.gate_type}
+                      {gate.model_name ? ` · ${gate.model_name}` : ""}
+                    </span>
+                    <RiskBadge value={gate.final_decision} />
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Gate said <span className="font-medium text-slate-700">{gate.decision}</span>
+                  {gate.confidence != null ? ` at ${(gate.confidence * 100).toFixed(0)}% confidence` : ""}
+                  {gate.rule_floor ? (
+                    <>
+                      {" "}
+                      · rule floor <span className="font-medium text-slate-700">{gate.rule_floor}</span>
+                      {gate.final_decision !== gate.rule_floor ? " (gate escalated)" : ""}
+                    </>
+                  ) : null}
+                  {" "}· {gate.latency_ms} ms
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {run.execution_mode === "llm_mcp_agent" && run.client_safe_brief_status ? (
+        <section className="panel mb-6 rounded-md p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase text-accent">Client-Safe Brief</p>
+            <RiskBadge value={run.client_safe_brief_status} />
+          </div>
+          {run.client_safe_brief_status === "safe" && run.client_safe_brief ? (
+            <p className="mt-3 text-sm leading-6 text-slate-700">{run.client_safe_brief}</p>
+          ) : (
+            <p className="mt-3 text-sm text-slate-600">
+              Withheld pending human review - the client-safe-brief gate did not classify the drafted brief as safe to
+              release automatically.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <section className="panel rounded-md p-5">
@@ -283,6 +354,67 @@ export default function MCPGovernanceRunDetailPage() {
         ) : (
           <p className="mt-3 text-sm text-slate-500">No MCP tool calls were recorded for this run.</p>
         )}
+      </section>
+
+      <section className="panel mt-6 rounded-md p-5">
+        <p className="text-xs font-semibold uppercase text-accent">Feedback</p>
+        <h2 className="mt-1 text-base font-semibold">Was this diagnosis useful?</h2>
+        {isDemoViewer ? (
+          <p className="mt-3 text-sm text-slate-600">
+            Public demo is read-only.{" "}
+            <Link href="/" className="font-semibold text-accent hover:text-teal-700">
+              Use the full demo login
+            </Link>{" "}
+            to leave feedback.
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              placeholder="Optional comment"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              className="focus-ring w-72 rounded-md border border-line px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => sendFeedback("up")}
+              disabled={submittingFeedback}
+              className="focus-ring inline-flex items-center rounded-md border border-line px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              <ThumbsUp className="mr-2" size={15} aria-hidden="true" />
+              Helpful
+            </button>
+            <button
+              type="button"
+              onClick={() => sendFeedback("down")}
+              disabled={submittingFeedback}
+              className="focus-ring inline-flex items-center rounded-md border border-line px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              <ThumbsDown className="mr-2" size={15} aria-hidden="true" />
+              Not helpful
+            </button>
+          </div>
+        )}
+        {run.feedback.length ? (
+          <ul className="mt-4 space-y-2">
+            {run.feedback.map((item) => (
+              <li key={item.id} className="flex items-start gap-2 rounded-md border border-line p-3 text-sm">
+                {item.rating === "up" ? (
+                  <ThumbsUp size={15} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                ) : (
+                  <ThumbsDown size={15} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
+                )}
+                <div>
+                  <p className="text-slate-700">{item.comment || <span className="text-slate-400">No comment</span>}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {item.reviewer_name ?? "Reviewer"} · {formatDateTime(item.created_at)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
     </>
   );

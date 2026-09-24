@@ -25,7 +25,13 @@ const styles: Record<string, string> = {
   failed: "border-red-200 bg-red-50 text-red-700",
   running: "border-slate-200 bg-slate-50 text-slate-600",
   llm_mcp_agent: "border-teal-200 bg-teal-50 text-teal-700",
-  deterministic_fallback: "border-slate-200 bg-slate-50 text-slate-600"
+  deterministic_fallback: "border-slate-200 bg-slate-50 text-slate-600",
+  proposed: "border-slate-200 bg-slate-50 text-slate-600",
+  pending_approval: "border-amber-200 bg-amber-50 text-amber-700",
+  executed: "border-teal-200 bg-teal-50 text-teal-700",
+  verified: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  mismatch: "border-red-200 bg-red-50 text-red-700",
+  rolled_back: "border-slate-200 bg-slate-100 text-slate-700"
 };
 
 export function RiskBadge({ value }: { value: RiskLevel | string }) {

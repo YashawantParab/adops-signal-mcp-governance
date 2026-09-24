@@ -242,6 +242,7 @@ class AgentRun(Base):
     gate_decisions: Mapped[list["GateDecision"]] = relationship(
         back_populates="agent_run", cascade="all, delete-orphan"
     )
+    feedback: Mapped[list["RunFeedback"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
 
 
 class MCPToolCall(Base):
@@ -434,6 +435,23 @@ class ActionRollback(Base):
 
     action_execution: Mapped[ActionExecution] = relationship(back_populates="rollbacks")
     actor: Mapped["User"] = relationship()
+
+
+class RunFeedback(Base):
+    """Thumbs up/down + optional comment on a completed agent run (Phase 3H).
+    Authenticated, non-demo users only - see app/api/mcp.py role gating."""
+
+    __tablename__ = "run_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    rating: Mapped[str] = mapped_column(String(10), nullable=False)  # "up" | "down"
+    comment: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="feedback")
+    user: Mapped["User"] = relationship()
 
 
 class MCPAccessToken(Base):

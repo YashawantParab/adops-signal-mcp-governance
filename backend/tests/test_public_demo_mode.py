@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.agent import AdOpsSignalAgent
 from app.api.actions import propose
-from app.api.mcp import run_mcp_agent
+from app.api.mcp import run_mcp_agent, submit_feedback
 from app.api.mcp_tokens import create_mcp_token
 from app.database import Base
 from app.models import (
@@ -22,8 +22,9 @@ from app.models import (
     PolicyCheck,
     ProposedAction,
     Recommendation,
+    RunFeedback,
 )
-from app.schemas import CreateMCPTokenRequest, MCPAgentRunRequest, ProposeActionRequest
+from app.schemas import CreateMCPTokenRequest, MCPAgentRunRequest, ProposeActionRequest, SubmitFeedbackRequest
 from app.security import (
     DEMO_VIEWER_ROLE,
     build_demo_viewer,
@@ -162,3 +163,18 @@ def test_demo_viewer_cannot_create_a_hosted_mcp_token(tmp_path):
         )
     assert excinfo.value.status_code == 403
     assert db.execute(select(MCPAccessToken)).first() is None
+
+
+def test_demo_viewer_cannot_submit_feedback(tmp_path):
+    db = session_with_seed(tmp_path)
+    demo_user = build_demo_viewer()
+
+    with pytest.raises(HTTPException) as excinfo:
+        submit_feedback(
+            9001,
+            SubmitFeedbackRequest(rating="up"),
+            db=db,
+            user=require_roles("admin", "adops_manager", "product_manager")(user=demo_user),
+        )
+    assert excinfo.value.status_code == 403
+    assert db.execute(select(RunFeedback)).first() is None

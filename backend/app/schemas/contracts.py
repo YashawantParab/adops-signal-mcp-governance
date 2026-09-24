@@ -371,6 +371,7 @@ class AgentRunDetail(AgentRunRead):
     policy_checks: list[PolicyCheckRead]
     blocked_actions: list[BlockedActionRead]
     gate_decisions: list[GateDecisionRead] = Field(default_factory=list)
+    feedback: list["RunFeedbackRead"] = Field(default_factory=list)
 
 
 class MCPApprovalDecisionRequest(BaseModel):
@@ -559,3 +560,23 @@ class MCPAccessTokenRead(BaseModel):
 
 class MCPAccessTokenCreated(MCPAccessTokenRead):
     token: str  # shown exactly once
+
+
+# --- Run feedback (Phase 3H) --------------------------------------------------
+
+
+class SubmitFeedbackRequest(BaseModel):
+    rating: str = Field(pattern="^(up|down)$")
+    comment: Optional[str] = Field(default=None, max_length=1000)
+
+
+class RunFeedbackRead(BaseModel):
+    id: int
+    agent_run_id: int
+    user_id: int
+    reviewer_name: Optional[str] = None
+    rating: str
+    comment: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

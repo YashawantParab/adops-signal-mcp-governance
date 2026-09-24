@@ -25,6 +25,7 @@ from app.models import (
     MCPToolCall,
     PacingSnapshot,
     PolicyCheck,
+    RunFeedback,
     User,
     VastValidationError,
 )
@@ -41,6 +42,7 @@ from app.schemas import (
     MCPToolCallRead,
     MCPToolTimelineEntry,
     PolicyCheckRead,
+    RunFeedbackRead,
 )
 from app.services.campaign_service import get_campaign_health as compute_campaign_health, get_campaign_or_none
 from app.services.json_fields import parse_list
@@ -62,6 +64,34 @@ class InvalidCampaignIdError(ValueError):
 
 class CampaignNotFoundError(ValueError):
     pass
+
+
+class AgentRunNotFoundError(ValueError):
+    pass
+
+
+def _feedback_to_read(feedback: RunFeedback) -> RunFeedbackRead:
+    return RunFeedbackRead(
+        id=feedback.id,
+        agent_run_id=feedback.agent_run_id,
+        user_id=feedback.user_id,
+        reviewer_name=feedback.user.full_name if feedback.user else None,
+        rating=feedback.rating,
+        comment=feedback.comment,
+        created_at=feedback.created_at,
+    )
+
+
+def submit_run_feedback(db: Session, run_id: int, *, user: User, rating: str, comment: str | None) -> RunFeedbackRead:
+    run = db.get(AgentRun, run_id)
+    if run is None:
+        raise AgentRunNotFoundError(f"Agent run {run_id} was not found")
+    feedback = RunFeedback(agent_run_id=run_id, user_id=user.id, rating=rating, comment=comment)
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+    feedback.user = user
+    return _feedback_to_read(feedback)
 
 
 def _approval_to_read(approval: ApprovalRequest) -> ApprovalRequestRead:
@@ -119,6 +149,7 @@ def _agent_run_to_detail(run: AgentRun) -> AgentRunDetail:
         policy_checks=[PolicyCheckRead.model_validate(item) for item in run.policy_checks],
         blocked_actions=[BlockedActionRead.model_validate(item) for item in run.blocked_actions],
         gate_decisions=[GateDecisionRead.model_validate(item) for item in run.gate_decisions],
+        feedback=[_feedback_to_read(item) for item in run.feedback],
     )
 
 
@@ -144,6 +175,7 @@ def get_agent_run_detail(db: Session, run_id: int) -> AgentRunDetail | None:
             selectinload(AgentRun.policy_checks),
             selectinload(AgentRun.blocked_actions),
             selectinload(AgentRun.gate_decisions),
+            selectinload(AgentRun.feedback).selectinload(RunFeedback.user),
             selectinload(AgentRun.approval_requests).selectinload(ApprovalRequest.campaign),
             selectinload(AgentRun.approval_requests).selectinload(ApprovalRequest.reviewer),
         )
@@ -156,6 +188,7 @@ def get_agent_run_detail(db: Session, run_id: int) -> AgentRunDetail | None:
     run.blocked_actions.sort(key=lambda item: item.created_at)
     run.approval_requests.sort(key=lambda item: item.created_at)
     run.gate_decisions.sort(key=lambda item: item.created_at)
+    run.feedback.sort(key=lambda item: item.created_at)
     return _agent_run_to_detail(run)
 
 

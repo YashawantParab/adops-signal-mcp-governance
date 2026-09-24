@@ -14,9 +14,12 @@ from app.schemas import (
     MCPApprovalDecisionRequest,
     MCPSummary,
     MCPToolRead,
+    RunFeedbackRead,
+    SubmitFeedbackRequest,
 )
 from app.security import DEMO_VIEWER_ROLE, get_current_user, require_roles
 from app.services.mcp_governance_service import (
+    AgentRunNotFoundError,
     ApprovalRequestAlreadyDecidedError,
     CampaignNotFoundError,
     InvalidCampaignIdError,
@@ -27,6 +30,7 @@ from app.services.mcp_governance_service import (
     mcp_summary,
     mcp_tool_registry,
     run_agent_orchestration,
+    submit_run_feedback,
 )
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp-governance"])
@@ -160,3 +164,18 @@ def mcp_governance_summary(
     _: User = Depends(require_roles("admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE)),
 ) -> MCPSummary:
     return mcp_summary(db)
+
+
+@router.post("/runs/{run_id}/feedback", response_model=RunFeedbackRead)
+def submit_feedback(
+    run_id: int,
+    payload: SubmitFeedbackRequest,
+    db: Session = Depends(get_db),
+    # Deliberately excludes DEMO_VIEWER_ROLE: feedback is a governance-record
+    # write, same invariant as agent runs/approvals - see test_public_demo_mode.py.
+    user: User = Depends(require_roles("admin", "adops_manager", "product_manager")),
+) -> RunFeedbackRead:
+    try:
+        return submit_run_feedback(db, run_id, user=user, rating=payload.rating, comment=payload.comment)
+    except AgentRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

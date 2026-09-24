@@ -354,6 +354,27 @@ Example output:
 }
 ```
 
+## Connecting To The Hosted External Endpoint (Phase 3F)
+
+The stdio setup above is one way to reach this MCP server. The deployed backend also exposes the exact same tools/resources/prompt over **authenticated Streamable HTTP**, so an external MCP client can connect without running anything locally.
+
+1. Log in as an `admin` or `adops_manager` user and mint a token:
+
+   ```bash
+   curl -X POST https://<your-backend-host>/api/mcp-tokens \
+     -H "Authorization: Bearer <your JWT>" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "My MCP Inspector", "rate_limit_per_minute": 30}'
+   ```
+
+   The response's `"token"` field is shown **exactly once** — save it now. (Never commit a real token to this repo or paste one into docs/issues.)
+
+2. **MCP Inspector**: run `npx @modelcontextprotocol/inspector`, choose Streamable HTTP transport, set the URL to `https://<your-backend-host>/mcp/external`, and add an `Authorization: Bearer <token>` header.
+
+3. **Claude Desktop** (or any client supporting remote Streamable HTTP servers with custom headers): add an entry pointing at the same URL and header. Consult your client's docs for its exact remote-server config format, since this varies by client version.
+
+A request without a valid token returns `401`; a request over budget for that token returns `429`; every request is audited to `external_mcp_calls` regardless of outcome. Locally, `http://localhost:8000/mcp/external` works out of the box (default DNS-rebinding allowlist covers `localhost`/`127.0.0.1`); a real deployed hostname must be added to `EXTERNAL_MCP_ALLOWED_HOSTS` first (see `.env.example`).
+
 ## Current Scope
 
-This milestone intentionally does not add frontend UI, approval workflow, LLM orchestration, or action-taking tools. Those live in the separate embedded governance API (`/api/mcp/*`), which reuses these same tool implementations — see [Architecture](./architecture.md) and [MCP Tool Registry](./mcp-tool-registry.md).
+This milestone intentionally does not add frontend UI, approval workflow, LLM orchestration, or action-taking tools. Those live in the separate embedded governance API (`/api/mcp/*`), which reuses these same tool implementations — see [Architecture](./architecture.md) and [MCP Tool Registry](./mcp-tool-registry.md). The hosted external endpoint (previous section) is Phase 3's addition — a real, running, authenticated remote MCP server on top of this same local-only milestone, not a replacement for it.

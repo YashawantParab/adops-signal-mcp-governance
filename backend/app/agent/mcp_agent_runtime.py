@@ -59,6 +59,7 @@ class GovernedDiagnosis(BaseModel):
     root_causes: list[GovernedCause] = Field(min_length=1, max_length=4)
     confidence_score: float = Field(ge=0, le=1)
     human_approval_required: bool
+    client_safe_brief: str = Field(min_length=20, max_length=800)
 
 
 SYSTEM_PROMPT = """
@@ -81,6 +82,11 @@ Rules:
    flight dates, or creatives.
 7. Do not attribute fault to a specific publisher, advertiser, or partner unless the evidence
    directly supports it.
+8. Also write client_safe_brief: a short, advertiser-facing summary of the diagnosis and
+   recommendation. It must never mention publisher names, floor prices, internal tool names,
+   evidence IDs, database/SQL terms, or any other internal-only detail, and must not claim a
+   fix has already been applied. A governance gate reviews this text before it is releasable -
+   an unsafe brief will be withheld from the operator, not silently rewritten.
 """.strip().format(finish_tool=FINISH_TOOL_NAME)
 
 
@@ -176,12 +182,22 @@ async def _run_loop(
             loop = asyncio.get_running_loop()
             for step in range(1, settings.max_agent_steps + 1):
                 try:
-                    # Provider SDKs make a blocking synchronous HTTP call here. Running
-                    # it inline would stall the event loop for the call's full duration,
-                    # so asyncio.wait_for's outer timeout (see run_governed_mcp_agent)
-                    # could never actually preempt a slow/hung provider - it can only
-                    # cancel at an await point, and there would be none. Executing it in
-                    # a thread keeps this step a real await point.
+                    # Provider SDKs make a blocking synchronous HTTP call here. Running it
+                    # inline would stall the event loop for the call's full duration - e.g.
+                    # starving this run's own MCP stdio I/O, or any other concurrent request
+                    # this worker is handling. Executing it in a thread avoids that.
+                    #
+                    # This does NOT give AGENT_TIMEOUT_SECONDS true mid-call preemption: a
+                    # Python thread blocked inside a C-level call (a hung socket read, or a
+                    # pathological time.sleep) cannot be forcibly interrupted from outside -
+                    # only OS processes can be killed, not threads. asyncio.wait_for's outer
+                    # timeout (see run_governed_mcp_agent) still bounds this run's TOTAL
+                    # elapsed time and fires the instant control returns to the event loop
+                    # (immediately for a fast step, or as soon as a slow one finally
+                    # completes/errors) - it just cannot cut off a single call mid-flight.
+                    # The real bound on one call's duration is the provider's own configured
+                    # timeout (OPENAI_TIMEOUT_SECONDS / ANTHROPIC_TIMEOUT_SECONDS), enforced
+                    # by httpx at the socket level, which real network calls always hit.
                     step_result = await loop.run_in_executor(
                         None,
                         functools.partial(

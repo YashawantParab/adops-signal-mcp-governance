@@ -2,11 +2,49 @@
 
 ### MCP Governance Control Plane for AdOps Agents
 
-SignalOps AI is a portfolio-grade AI product demo for CTV/AdOps teams. It shows how an AI agent can investigate campaign delivery risk through controlled MCP tools, policy context, risk scoring, human approval, and full audit traceability.
+SignalOps AI is a portfolio-grade AI product demo for CTV/AdOps teams. An LLM agent investigates campaign delivery risk through real, governed MCP tool calls; a fast decision layer classifies and routes the result; deterministic rules set a safety floor no gate can lower; and a human approves before any synthetic action executes — with every step audited.
 
 This is a working product case study — an enterprise-style MVP and portfolio demo, not a chat interface placed over hardcoded answers, and not a claim of production-scale usage.
 
 > **Naming note:** the repository, Vercel project, Render service, and Neon database use the technical name `adops-signal-mcp-governance`. The product itself is branded **SignalOps AI** everywhere a user or reviewer sees it (UI, docs, demo).
+
+## Architecture At A Glance
+
+| Layer | What it does | Where |
+|---|---|---|
+| **System 2 — LLM + MCP agent** | An LLM (OpenAI or Anthropic) dynamically picks real MCP tools, one at a time, over a real stdio protocol connection to this project's own MCP server — not simulated, not direct function calls dressed up as MCP. | `backend/app/agent/mcp_agent_runtime.py`, `mcp-server/` |
+| **System 1 — Decision gates** | `RuleGate` (deterministic), `LLMGate`, or `JevGate` (TypeSafe AI, early access) classify risk routing, evidence support, and client-safe-brief safety in one fast structured call each. | `backend/app/gates/` |
+| **Safety floor** | A deterministic rule engine sets the minimum risk routing (auto-recommend / require-approval / block). A gate may only escalate this, never downgrade it — enforced unconditionally, with tests proving it. | `app/gates/base.py::apply_rule_floor` |
+| **Authority** | A human approves every synthetic action and every HIGH/CRITICAL-risk recommendation, with a required rationale. The agent can propose; it cannot approve its own proposal. | `/mcp-governance/approvals`, `/mcp-governance/actions` |
+| **Action** | A narrow, typed synthetic action service (frequency cap, device targeting, pause/resume) — no real ad server anywhere. | `backend/app/services/mock_ad_server.py`, `action_execution_service.py` |
+| **Verification & recovery** | Every execution is re-read and compared against what was requested; every rollback restores and re-verifies prior state. | `action_verifications`, `action_rollbacks` tables |
+| **Audit** | Every tool call, gate decision, approval, execution, rollback, and piece of feedback is persisted and reconstructable — nothing is silently dropped or overwritten. | Governance Record (`/mcp-governance/runs/[id]`) |
+| **Evals** | Deterministic golden-case suite (CI-safe) plus a manual, real gate-comparison harness that reports `NOT RUN` honestly for unconfigured providers — never a fabricated number. | `backend/evals/` |
+
+```mermaid
+flowchart TD
+    Q[Operator question] --> A[LLM agent<br/>System 2]
+    A -->|selects a tool| G1[Governance wrapper]
+    G1 -->|real MCP stdio| S[mcp-server/]
+    S -->|evidence| A
+    A -->|finishes| D[Structured diagnosis<br/>+ client-safe brief]
+    D --> Gate[Decision gates<br/>System 1: Rule / LLM / Jev]
+    Gate --> Floor{Rule floor}
+    Floor -->|escalate only| Route[Final routing]
+    Route -->|auto| Done1[No escalation]
+    Route -->|require approval| H[Human review]
+    Route -->|block| Blocked[Blocked]
+    H -->|approved| Act[Synthetic action service]
+    Act --> Verify[Verify state]
+    Verify -->|mismatch or by request| Rollback[Rollback + re-verify]
+    Act --> Audit[(Governance Record)]
+    Gate --> Audit
+    H --> Audit
+    Verify --> Audit
+    Rollback --> Audit
+```
+
+Jev is TypeSafe AI's early-access System One model; see [Jev Integration Notes](./docs/jev-integration-notes.md) for exactly what's confirmed from public docs vs. inferred, and its current status in this repo (adapter built, not yet a live dependency). When no LLM/Jev credentials are configured, every run honestly falls back to a deterministic path with an explicit `fallback_reason` — it never pretends a model ran.
 
 ## Live Demo
 
@@ -597,11 +635,13 @@ MCP-governance-specific roadmap (resources/prompts, hosted MCP endpoint, real po
 - VAST checks use controlled synthetic validation rather than fetching arbitrary tags.
 - Demo authentication is not enterprise SSO.
 - No direct mutation of live campaign settings.
-- The legacy diagnosis tool registry (`GET /api/agent/tools`) documents that bounded tool surface in an MCP-compatible shape only; it is not a running MCP server. The separate `mcp-server/` package *is* a running MCP server, but is a local-only milestone with no hosted, authenticated endpoint yet (see [MCP Governance](#mcp-governance)).
-- No MCP resources or prompts are exposed yet, only tools (see [MCP Tool Registry](./docs/mcp-tool-registry.md#resources-and-prompts)).
-- The MCP risk engine is a deterministic rule-based scorer, not a trained or learned model, and has not been validated against real incident outcomes (see [Product Case Study → Limitations](./docs/product-case-study.md#limitations)).
+- The legacy diagnosis tool registry (`GET /api/agent/tools`) documents that bounded tool surface in an MCP-compatible shape only; it is not a running MCP server, and remains a separate, untouched code path from the governed MCP agent below (see `CLAUDE.md`).
+- The MCP risk engine's deterministic rule floor is a rule-based scorer, not a trained or learned model, and has not been validated against real incident outcomes. `LLMGate` and `JevGate` may only ever escalate it, never downgrade it.
+- **Jev is early access.** `typesafe-sdk` is not yet a project dependency (pending explicit approval — it talks to a paid, metered API) and `TYPESAFE_API_KEY` was not available while building this — `JevGate` is a real, documented adapter boundary (see `docs/jev-integration-notes.md`) that has never been exercised against the live API. Every report in this repo marks Jev results `NOT RUN` rather than fabricating them.
+- The closed action loop (propose → approve → execute → verify → rollback) only ever touches **synthetic** campaign settings on the seeded dataset — there is no real ad server, SSP, or DSP anywhere in this repository.
+- No live LLM/Jev benchmark numbers are published in this README — only what has actually been measured and dated under `docs/evals/`.
 - Public deployment still requires the repository owner to connect a cloud account.
-- The public `/demo` session is read-only by design and rate-limited per IP: it runs the real diagnosis pipeline but never persists an audit log or recommendation change, and cannot approve, reject, or reseed anything. It shares the same seeded dataset as the full login.
+- The public `/demo` session is read-only by design and rate-limited per IP: it can run a real diagnosis but never persists an audit log, agent run, gate decision, synthetic action, MCP token, or feedback row, and cannot approve, reject, execute, or reseed anything. It shares the same seeded dataset as the full login.
 - Render's free tier can cold-start a sleeping backend instance (up to ~60s); the frontend surfaces this as a "waking up" retry state rather than a broken page, but the first request after idle time is still slow.
 
 ## What This Proves

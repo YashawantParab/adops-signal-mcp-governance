@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PlayCircle,
   ShieldCheck,
   TrendingUp,
   Tv,
@@ -43,6 +44,12 @@ const nav = [
     roles: MCP_GOVERNANCE_ROLES
   },
   { href: "/recommendations", label: "Decision Queue", icon: ClipboardCheck },
+  {
+    href: "/mcp-governance/actions",
+    label: "Synthetic Actions",
+    icon: PlayCircle,
+    roles: MCP_GOVERNANCE_ROLES
+  },
   {
     href: "/audit-logs",
     label: "Governance Record",

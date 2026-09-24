@@ -12,6 +12,7 @@ from app.api.mcp import (
     mcp_tools,
     reject_mcp_approval,
     run_mcp_agent,
+    submit_feedback,
 )
 from app.database import Base
 from app.models import (
@@ -33,7 +34,7 @@ from app.models import (
     User,
     VastValidationError,
 )
-from app.schemas import MCPAgentRunRequest, MCPApprovalDecisionRequest
+from app.schemas import MCPAgentRunRequest, MCPApprovalDecisionRequest, SubmitFeedbackRequest
 from seed import build_seed_data
 
 
@@ -268,4 +269,27 @@ def test_agent_run_unknown_campaign_returns_404(tmp_path):
             db=db,
             _=user,
         )
+    assert excinfo.value.status_code == 404
+
+
+def test_authenticated_user_can_submit_feedback_and_it_appears_in_run_detail(tmp_path):
+    db = seeded_session(tmp_path)
+    user = db.get(User, 1)
+
+    result = submit_feedback(9001, SubmitFeedbackRequest(rating="up", comment="Accurate diagnosis"), db=db, user=user)
+    assert result.rating == "up"
+    assert result.comment == "Accurate diagnosis"
+    assert result.reviewer_name == user.full_name
+
+    detail = mcp_run_detail(9001, db=db, _=user)
+    assert len(detail.feedback) == 1
+    assert detail.feedback[0].rating == "up"
+
+
+def test_feedback_on_unknown_run_returns_404(tmp_path):
+    db = seeded_session(tmp_path)
+    user = db.get(User, 1)
+
+    with pytest.raises(HTTPException) as excinfo:
+        submit_feedback(999999, SubmitFeedbackRequest(rating="down"), db=db, user=user)
     assert excinfo.value.status_code == 404

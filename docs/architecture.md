@@ -39,7 +39,7 @@ flowchart TD
     P1[Policy Docs<br/>docs/policies] --> T6
 ```
 
-The standalone MCP server (`mcp-server/`) is not part of this deployed request path — it is a local-only milestone connectable from an MCP client against the same database; see [MCP Local Setup](./mcp-local-setup.md).
+**Updated in Phase 1:** the standalone MCP server (`mcp-server/`) is no longer local-only — the backend bundles it (`backend/Dockerfile`) and spawns it as a real stdio MCP subprocess for the governed agent path (`POST /api/mcp/agent/run` when a provider key is configured). It remains separately connectable from an external MCP client (MCP Inspector, Claude Desktop) against the same database; see [MCP Local Setup](./mcp-local-setup.md) and the "Governed LLM + MCP Agent" section below, which is the authoritative description of the current request path — the rest of this document (written pre-Phase-1) still describes the original deterministic-only orchestration, which now survives as the explicit `deterministic_fallback` execution mode.
 
 ## System Diagram
 
@@ -216,6 +216,28 @@ sequenceDiagram
 
 Role gates (`app/security.py::require_roles`): only `admin` or `adops_manager` can call `/api/mcp/approvals/{id}/approve` or `/reject`. Reads (`/runs`, `/approvals`, `/summary`, `/tools`) are open to `admin`, `adops_manager`, `product_manager`, and the read-only public demo role. Approving an already-decided request returns `409`, not a silent overwrite.
 
+## Governed LLM + MCP Agent and Decision Gates (Phase 1 + 2)
+
+This is the current, authoritative description of `POST /api/mcp/agent/run`. The "Approval Workflow" section above describes the original deterministic orchestration, which still exists and still runs — as the `deterministic_fallback` execution mode.
+
+```text
+campaign/query
+  -> LLM provider (OpenAI or Anthropic, app/agent/providers/)
+  -> dynamically chooses a real MCP tool, one at a time (app/agent/mcp_agent_runtime.py)
+  -> governance wrapper: registry validation -> permission -> scope -> audit log -> execute (app/services/governance_wrapper.py)
+  -> real MCP client, stdio, to the bundled mcp-server/ subprocess (app/agent/mcp_client.py)
+  -> evidence (assigned an ID, fed back to the model)
+  -> ... repeats until the model finishes or a bound is hit (MAX_AGENT_STEPS/TOOL_CALLS/TOKENS, AGENT_TIMEOUT_SECONDS) ...
+  -> structured diagnosis + client-safe brief, evidence-ID validated
+  -> Decision Gates (System 1, app/gates/): risk_routing, evidence_verification, client_safe_brief
+  -> deterministic rule floor (risk_routing can only be escalated by a gate, never downgraded)
+  -> approval_requests / blocked_actions (unchanged schema from Phase 0)
+```
+
+If the configured provider has no key, MCP is unreachable, a bound is hit, or the model's output fails validation, the run transparently falls back to the deterministic orchestration with an honest `fallback_reason` (`missing_provider_key`, `mcp_unavailable`, `timeout`, `max_steps_exceeded`, `structured_output_failure`, `no_evidence_grounded_causes`, `no_gate_supported_causes`, ...) — `execution_mode` and `fallback_reason` are always persisted on `agent_runs` and visible in the UI, never silently swapped.
+
+**Decision gates** (`app/gates/`): `DecisionGate` is a provider-neutral interface with three implementations — `RuleGate` (deterministic, always available), `LLMGate` (reuses the agent's own configured provider via a single structured classification call), and `JevGate` (TypeSafe AI Jev, early access — `typesafe-sdk` is not yet a dependency, pending approval; always reports itself unavailable until it is). `DECISION_GATE_PROVIDER` selects the primary gate; unavailable gates fall back `jev -> llm -> rules`. Every gate call persists a `gate_decisions` row and is visible in the Agent Console and Governance Record UI. Full detail, including the exact rule-floor-can-only-escalate guarantee and which decision points are wired into the live loop versus implemented-but-not-yet-wired, is in `CLAUDE.md` and `app/gates/base.py`.
+
 ## Audit Trail
 
 Every step of `run_agent_orchestration` writes a `MCPToolCall` row with tool name, input JSON, output JSON, status, and latency, in addition to the returned `tool_timeline` shown in the UI. Combined with the `agent_runs`, `approval_requests`, `policy_checks`, and `blocked_actions` rows, a full run is reconstructable after the fact: what was asked, what evidence was read, what the risk score was, what governance outcome followed, who reviewed it, and when. Nothing is deleted or overwritten — approval decisions update `approval_requests` in place but the originating `agent_run` and its tool calls are immutable history.
@@ -292,4 +314,4 @@ Recommended production shape beyond the current Vercel/Render/Neon deployment de
 - OpenTelemetry traces.
 - Real platform connectors and data freshness SLAs.
 - Data retention and deletion policy.
-- A running MCP server behind authenticated, rate-limited transport for external MCP clients (today's standalone server is a local-only milestone — see [MCP Local Setup](./mcp-local-setup.md)).
+- A running MCP server behind authenticated, rate-limited transport for **external** MCP clients (the internal governed-agent path already uses the real MCP server as of Phase 1 — see [MCP Local Setup](./mcp-local-setup.md)).

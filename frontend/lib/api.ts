@@ -11,7 +11,9 @@ import type {
   MCPApprovalRequest,
   MCPSummary,
   MCPToolDescriptor,
+  ProposedAction,
   Recommendation,
+  RunFeedback,
   AuthResponse,
   RoiAssumptions,
   RoiEstimate,
@@ -185,6 +187,27 @@ export const api = {
     request<MCPApprovalRequest>(`/api/mcp/approvals/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ rationale })
+    }),
+  actions: () => request<ProposedAction[]>("/api/actions"),
+  action: (id: number) => request<ProposedAction>(`/api/actions/${id}`),
+  proposeAction: (campaignId: number, actionType: string, requestedParams: Record<string, unknown>) =>
+    request<ProposedAction>("/api/actions/propose", {
+      method: "POST",
+      body: JSON.stringify({ campaign_id: campaignId, action_type: actionType, requested_params: requestedParams })
+    }),
+  approveAction: (id: number, rationale: string) =>
+    request<ProposedAction>(`/api/actions/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ rationale })
+    }),
+  executeAction: (id: number) =>
+    request<ProposedAction>(`/api/actions/${id}/execute`, { method: "POST" }),
+  rollbackAction: (id: number) =>
+    request<ProposedAction>(`/api/actions/${id}/rollback`, { method: "POST" }),
+  submitRunFeedback: (runId: number, rating: "up" | "down", comment?: string) =>
+    request<RunFeedback>(`/api/mcp/runs/${runId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({ rating, comment })
     })
 };
 
