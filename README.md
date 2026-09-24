@@ -44,7 +44,49 @@ flowchart TD
     Rollback --> Audit
 ```
 
-Jev is TypeSafe AI's early-access System One model; see [Jev Integration Notes](./docs/jev-integration-notes.md) for exactly what's confirmed from public docs vs. inferred, and its current status in this repo (adapter built, not yet a live dependency). When no LLM/Jev credentials are configured, every run honestly falls back to a deterministic path with an explicit `fallback_reason` — it never pretends a model ran.
+### Jev (TypeSafe AI System One)
+
+SignalOps includes a Jev-ready System 1 DecisionGate integration. The integration is
+implemented against the documented TypeSafe interface, but live Jev evaluation has not
+yet been performed because TypeSafe access is currently unavailable (the early-access
+waitlist is full).
+
+Four distinct roles make up the decision stack, and each is named for what it actually
+is — never overstated:
+
+| Role | What it is | This repo |
+|---|---|---|
+| **LLM — System 2 reasoning** | Multi-step investigation: the agent picks real MCP tools, gathers evidence, and produces a structured diagnosis. Slower, more expensive, most capable. | `backend/app/agent/mcp_agent_runtime.py` |
+| **Jev — System 1 classification/verification** | A single fast, typed, calibrated classification call per decision point (risk routing, evidence verification, client-safe-brief safety) — not a reasoning agent. Positioned as fast/cheap relative to an LLM call. **Not yet exercised live** — see below. | `backend/app/gates/jev_gate.py` |
+| **Rules — deterministic safety floor** | A rule-based scorer with no learned behavior. Sets the minimum risk routing; every gate (LLM or Jev) may only escalate it, never downgrade it — enforced unconditionally and tested. | `backend/app/gates/rule_gate.py`, `base.py::apply_rule_floor` |
+| **Human — final authority** | Approves every synthetic action and every HIGH/CRITICAL-risk recommendation. The agent can propose; it cannot approve its own proposal, and no gate (including Jev) can bypass this. | `/mcp-governance/approvals` |
+
+**What "Jev-ready" means concretely:**
+- The official `typesafe-sdk` package (`0.7.1`) is an installed, pinned project
+  dependency — not a stub, not vendored, not an unofficial wrapper.
+- `JevGate` is implemented against the real, source-verified SDK contract (client
+  construction, question primitives, response schema, and the full typed exception
+  hierarchy) — see [Jev Integration Notes](./docs/jev-integration-notes.md) for exactly
+  what is confirmed from the installed package vs. inferred vs. not publicly documented.
+- Every failure mode — missing key, missing SDK, auth failure, rate limit, timeout,
+  network failure, malformed response, an unknown decision label — degrades honestly to
+  the next configured gate (`jev → llm → rules`) with a persisted, specific
+  `fallback_reason` and `execution_status` (e.g. `jev_unavailable_fallback_rules`). It
+  never fabricates a Jev answer.
+- The deterministic safety floor and low-confidence conservative escalation apply to
+  Jev exactly as they apply to every other gate: Jev may escalate a decision's
+  restrictiveness, never weaken it.
+- `python -m app.gates.jev_readiness` reports current readiness (SDK/adapter/key/remote
+  connectivity) without ever printing the key or making a billed call.
+
+**What it does not mean:** SignalOps AI is not "powered by Jev." No live Jev call has
+been made, no real accuracy/latency/cost numbers exist yet, and this README will not
+claim otherwise until `docs/evals/` contains a report actually labeled `LIVE`. See
+[docs/JEV_ACTIVATION_RUNBOOK.md](./docs/JEV_ACTIVATION_RUNBOOK.md) for the exact steps to
+go live once TypeSafe access is granted.
+
+When no LLM/Jev credentials are configured, every run honestly falls back to a
+deterministic path with an explicit `fallback_reason` — it never pretends a model ran.
 
 ## Live Demo
 
@@ -637,7 +679,7 @@ MCP-governance-specific roadmap (resources/prompts, hosted MCP endpoint, real po
 - No direct mutation of live campaign settings.
 - The legacy diagnosis tool registry (`GET /api/agent/tools`) documents that bounded tool surface in an MCP-compatible shape only; it is not a running MCP server, and remains a separate, untouched code path from the governed MCP agent below (see `CLAUDE.md`).
 - The MCP risk engine's deterministic rule floor is a rule-based scorer, not a trained or learned model, and has not been validated against real incident outcomes. `LLMGate` and `JevGate` may only ever escalate it, never downgrade it.
-- **Jev is early access.** `typesafe-sdk` is not yet a project dependency (pending explicit approval — it talks to a paid, metered API) and `TYPESAFE_API_KEY` was not available while building this — `JevGate` is a real, documented adapter boundary (see `docs/jev-integration-notes.md`) that has never been exercised against the live API. Every report in this repo marks Jev results `NOT RUN` rather than fabricating them.
+- **Jev is early access.** `typesafe-sdk==0.7.1` is an installed, pinned project dependency and `JevGate` is implemented against its real, source-verified contract, but `TYPESAFE_API_KEY` was not available while building this (the waitlist is full) — `JevGate` has never been exercised against the live API. See the [Jev section above](#jev-typesafe-ai-system-one) and `docs/jev-integration-notes.md`. Every report in this repo marks Jev results `NOT RUN` rather than fabricating them.
 - The closed action loop (propose → approve → execute → verify → rollback) only ever touches **synthetic** campaign settings on the seeded dataset — there is no real ad server, SSP, or DSP anywhere in this repository.
 - No live LLM/Jev benchmark numbers are published in this README — only what has actually been measured and dated under `docs/evals/`.
 - Public deployment still requires the repository owner to connect a cloud account.

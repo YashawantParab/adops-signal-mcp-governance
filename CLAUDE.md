@@ -59,10 +59,12 @@ and get a regression test proving zero writes
 `backend/app/gates/` implements a provider-neutral `DecisionGate` (`base.py`):
 `RuleGate` (deterministic, always available), `LLMGate` (reuses the same
 `LLMProvider.classify()` the agent's own provider exposes), `JevGate`
-(TypeSafe AI Jev — **early access, `typesafe-sdk` is not yet in
-`requirements.txt`, pending approval**; always reports itself unavailable
-until that's installed and `TYPESAFE_API_KEY` is set — see
-`docs/jev-integration-notes.md`). `DECISION_GATE_PROVIDER` selects the
+(TypeSafe AI Jev — **early access; `typesafe-sdk==0.7.1` IS a pinned
+`requirements.txt` dependency and the adapter is fully implemented against
+its real contract, but `TYPESAFE_API_KEY` is not available (waitlist full) so
+it has never been exercised live**; reports itself unavailable until a key is
+set — see `docs/jev-integration-notes.md` and
+`docs/JEV_ACTIVATION_RUNBOOK.md`). `DECISION_GATE_PROVIDER` selects the
 primary gate; unavailable gates fall back `jev -> llm -> rules`, and RuleGate
 is the unconditional backstop (`app/gates/__init__.py::get_decision_gate_chain`).
 

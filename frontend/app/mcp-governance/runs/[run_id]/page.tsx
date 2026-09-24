@@ -169,6 +169,16 @@ export default function MCPGovernanceRunDetailPage() {
                   ) : null}
                   {" "}· {gate.latency_ms} ms
                 </p>
+                {gate.requested_provider && gate.requested_provider !== gate.gate_type ? (
+                  <p className="mt-1 text-xs text-amber-700">
+                    {gate.requested_provider.toUpperCase()} unavailable — fell back to {gate.gate_type.toUpperCase()}
+                    {gate.fallback_reason ? (
+                      <>
+                        : <span className="font-mono">{gate.fallback_reason}</span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

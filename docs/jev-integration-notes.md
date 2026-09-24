@@ -1,146 +1,197 @@
-# Jev / TypeSafe System One — Integration Research (Phase 2A)
+# Jev / TypeSafe System One — Integration Research
 
-Researched 2026-09-24 via typesafe.ai's public blog, docs.typesafe.ai, the official
-`typesafe-ai/typesafe-sdk-python` GitHub repo, and web search. `TYPESAFE_API_KEY` is
-**not available in this environment** — nothing below has been exercised against the
-live API. Everything is sourced from public docs, not guessed.
+Researched 2026-09-24/25. `TYPESAFE_API_KEY` is **not available in this environment**
+(TypeSafe's early-access waitlist is currently full) — nothing here has been exercised
+against the live API. This revision supersedes the 2026-09-24 notes: everything below
+was re-verified by installing the real published package (`pip install typesafe-sdk`
+in a scratch venv) and reading its actual source (`_core/client/aio/client.py`,
+`_core/errors.py`, `_core/question_types.py`, `_core/response_types.py`,
+`_schemas/models.py`, `constants.py`) rather than relying on docs-page prose alone.
+Findings are separated into three buckets so the adapter never treats a guess as a fact.
 
-## What Jev is
+---
 
-Jev is TypeSafe AI's first "System One Model": a non-chat model that takes free-form
-`state` plus a set of typed `questions` and returns typed, calibrated probabilistic
-answers instead of free text. Trained with "Reinforcement Learning for Calibrated
-Decisions" (RLCD) rather than RLHF, positioned as fast (vendor claims 70–500ms
-end-to-end, 40–200x faster than an equivalent LLM call) and cheap (vendor claims
-$0.042 / 1M input tokens, output tokens free). Early access, waitlist-gated.
+## CONFIRMED FROM OFFICIAL SOURCES
 
-Source: https://typesafe.ai/blog/introducing-system-one-models-and-jev
+Verified either by direct `pip install typesafe-sdk==0.7.1` + source inspection in a
+scratch venv, or by a verbatim fetch of `docs.typesafe.ai` / the package's own metadata.
 
-## Package / install
+**Package**
+- PyPI: `typesafe-sdk`, latest published version `0.7.1` (released 2026-09-21).
+- Import name: `typesafe_sdk`. Requires Python `>=3.10`.
+- Runtime dependencies (from `pyproject.toml`): `httpx2>=2.0.0`, `pydantic>=2.12.0`,
+  `pydantic-core>=2.41.1`, `tenacity>=9.0.0`, `typing-extensions>=4.13.0`.
+  - `httpx2` is TypeSafe's own internal HTTP client package, not standard `httpx`.
+  - The `pydantic>=2.12.0` floor is higher than this repo's existing pin
+    (`pydantic==2.11.7`, set for the Phase 1 `mcp` SDK). A full combined resolution
+    test (`typesafe-sdk` + every existing backend dependency, in a clean venv) installs
+    cleanly with `pydantic==2.13.5` and `pip check` reports no conflicts — see Step 3.
 
-- PyPI package: `typesafe-sdk`. Import as `typesafe_sdk`.
-- `pip install typesafe-sdk` (or `uv add typesafe-sdk`).
-- Official repo: https://github.com/typesafe-ai/typesafe-sdk-python
+**Full export surface** (`typesafe_sdk.__all__`, 37 names, confirmed via
+`python -c "import typesafe_sdk; print(sorted(typesafe_sdk.__all__))"` against the real
+installed package):
+`Answer, AsyncModels, AsyncTypeSafeClient, Choice, ChoiceAnswer, ChoiceModel,
+JSONContent, JSONValue, ListModelsResponse, ModelMetadata, Models, Noul, NoulAnswer,
+NoulCriteria, NoulModel, Question, QuestionModel, Questions, RetryPolicy, Score,
+ScoreAnswer, ScoreModel, SystemOneResponse, TypeSafeAPIConnectionError,
+TypeSafeAPIError, TypeSafeAPIResponseValidationError, TypeSafeAPITimeoutError,
+TypeSafeAuthenticationError, TypeSafeBadRequestError, TypeSafeClient, TypeSafeError,
+TypeSafeInternalServerError, TypeSafeNotFoundError, TypeSafePermissionDeniedError,
+TypeSafeRateLimitError, TypeSafeUnprocessableEntityError, Usage, constants`
 
-**Not added to `backend/requirements.txt` in this pass** — flagged for explicit
-approval, see the Phase 2 checkpoint report. It costs nothing to have installed (no
-key = no calls), but the brief for this phase explicitly asked to confirm before
-adding a new dependency tied to a paid API.
-
-## Auth
-
-- Env var: `TYPESAFE_API_KEY` (matches this project's chosen name).
-- Optional `TYPESAFE_BASE_URL` to override the API host.
-- Can also be passed explicitly as `TypeSafeClient(api_key=...)`.
-
-## Client / call shape
-
+**Client construction and call shape** (`_core/client/aio/client.py`, read verbatim):
 ```python
-from typesafe_sdk import TypeSafeClient, AsyncTypeSafeClient, Choice, Noul, Score
-
-with TypeSafeClient() as client:
-    response = client.system_one(
-        state={"document": "..."},
-        questions={
-            "billing": Noul(instructions="Is this ticket about billing?"),
-            "tone": Choice(
-                instructions="What is the customer's tone?",
-                criteria={"calm": None, "frustrated": None, "angry": None},
-            ),
-            "urgency": Score(
-                instructions="How urgent is this ticket?",
-                criteria=["can wait", "this week", "today"],
-            ),
-        },
-    )
-```
-
-Constructor (`TypeSafeClient` / `AsyncTypeSafeClient`, both context managers):
-
-```python
-TypeSafeClient(
+AsyncTypeSafeClient(
     *, api_key: str | None = None, model: str | None = None,
-    retry: RetryPolicy | None = None, timeout: float | httpx.Timeout | None = None,
+    retry: RetryPolicy | None = None, timeout: float | None = None,
     headers=None, transport=None, http_client=None, base_url: str | None = None,
 )
-```
 
-`system_one()`:
-
-```python
-system_one(
-    state: JSONContent, questions: Mapping[str, Question], *,
+async def system_one(
+    self, state, questions, *,
     model: str | None = None, retry: RetryPolicy | None = None,
-    timeout: float | httpx.Timeout | None = None,
-    extra_headers=None, extra_body=None, response_model: type[ResponseT] | None = None,
+    timeout: float | None = None, extra_headers=None, extra_body=None,
+    response_model: type[ResponseT] | None = None,
 ) -> SystemOneResponse | ResponseT
 ```
+A synchronous `TypeSafeClient` with the same shape also exists. Both are context
+managers (`async with` / `with`).
 
-Default retry: `max_retries=2`, backoff 0.5s doubling to 5s (0.25 jitter), retries
-408/429/5xx + connection/timeout errors, honors `Retry-After`. Default total timeout
-budget: 30s.
+**Question input types** (`_core/question_types.py`, read verbatim):
+```python
+Noul(type="noul", instructions: JSONContent | None = None, criteria: NoulCriteria | None = None)
+Choice(type="choice", criteria: Mapping[str, JSONContent | None], instructions: JSONContent | None = None)
+Score(type="score", criteria: Sequence[JSONContent], instructions: JSONContent | None = None)
+```
+This confirms `Choice(instructions=..., criteria={option: None for option in ...})` —
+already used by the existing adapter — is the exact, current, correct call shape.
 
-Source: https://docs.typesafe.ai/sdk/python (constructor/method pages), confirmed via
-direct fetch of the rendered docs.
+**Answer / response types** (`_schemas/models.py`, read verbatim):
+```python
+class ChoiceAnswer: type: Literal["choice"]; choice: str; confidence: float; probabilities: dict[str, float]
+class ScoreAnswer:  type: Literal["score"];  score: str;  confidence: float; legend: ...; probabilities: dict[str, float]
+class NoulAnswer:   type: Literal["noul"];   noul: float
+class Answer(RootModel[NoulAnswer | ScoreAnswer | ChoiceAnswer])
+class SystemOneResponse: model: str; answers: dict[str, Answer]; usage: Usage
+class Usage: input_tokens: int; output_tokens: int
+```
+`ChoiceAnswer`/`ScoreAnswer` **do** carry `.confidence` and `.probabilities` as real
+typed fields (this was only inferred from blog prose in the prior revision of this
+document — now confirmed from the actual Pydantic model). `NoulAnswer` carries only
+`.noul` (a float in `[0, 1]`, doubling as both decision and calibrated confidence) — no
+separate confidence field. `SystemOneResponse.usage` is `{input_tokens, output_tokens}`
+only — **there is no cost or dollar-amount field anywhere in the response schema.**
 
-## Question primitives and answer fields
+**Response accessors** (`_core/response_types.py`, read verbatim): `SystemOneResponse`
+exposes `@cached_property` accessors `.nouls`, `.choices`, `.scores`, each a
+`dict[str, <TypedAnswer>]` filtered from `.answers` by `isinstance`. So
+`response.choices["decision"].choice` (already used by the existing adapter) is the
+exact, current, correct access pattern — not an inference.
 
-| Type | Input | Answer field(s) |
-|---|---|---|
-| `Noul(instructions=str)` | yes/no question | `.noul`: float in **[0, 1]** — itself both the decision (>0.5 ≈ yes) and the calibrated confidence (closer to 0 or 1 = more confident); no separate confidence field |
-| `Choice(instructions=str, criteria=dict[str, None])` | pick one of N labels | `.choice`: selected label. Per the announcement post, also `.probabilities` (per-label distribution) and `.confidence` (float) |
-| `Score(instructions=str, criteria=list[str])` | ordered severity/level | `.score`: selected level. Per the announcement post, also `.probabilities` and `.confidence` |
+**Exception hierarchy** (`_core/errors.py`, read verbatim):
+```
+TypeSafeError (base)
+└─ TypeSafeAPIError (fields: status, body, headers, endpoint; property: request_id)
+   ├─ TypeSafeBadRequestError            (400)
+   ├─ TypeSafeAuthenticationError        (401)
+   ├─ TypeSafePermissionDeniedError      (403)
+   ├─ TypeSafeNotFoundError              (404)
+   ├─ TypeSafeUnprocessableEntityError   (422)
+   ├─ TypeSafeRateLimitError             (429, field: retry_after_ms)
+   ├─ TypeSafeInternalServerError        (5xx)
+   └─ TypeSafeAPIResponseValidationError (200 but body failed validation; field: field_path)
+└─ TypeSafeAPIConnectionError (also subclasses ConnectionError)
+   └─ TypeSafeAPITimeoutError (also subclasses TimeoutError; field: timeout)
+```
+This is a strictly more precise hierarchy than the previous revision guessed (all
+subclass names, HTTP codes, and fields are exact, not approximate).
 
-Response access: `response.nouls["billing"].noul`, `response.choices["tone"].choice`,
-`response.scores["urgency"].score`; also `response.request_id`. A typed shorthand
-(`response.billing.noul`) and a custom `response_model=` for direct typed parsing also
-exist per the docs.
+**Env vars and defaults** (`constants.py`, read verbatim):
+- `TYPESAFE_API_KEY` — the API key (matches this project's existing env var name).
+- `TYPESAFE_BASE_URL` — override the API host. Default: `https://api.typesafe.ai`.
+- `TYPESAFE_DEFAULT_MODEL` — override the default model. Default: `"jev-latest"`.
+- `TYPESAFE_LOG_LEVEL` — SDK-internal log verbosity.
+- Default request timeout: `10.0` seconds (independent of this repo's own
+  `JEV_TIMEOUT_SECONDS`, which is passed explicitly and takes precedence).
 
-**Confidence note:** I directly fetched code examples showing `.noul`/`.choice`/`.score`
-access. The `.probabilities`/`.confidence` attribute names for `Choice`/`Score` are
-sourced from the announcement blog's prose ("Choice: Returns `choice`, `probabilities`,
-and `confidence`") rather than a verbatim SDK code sample I could fetch directly — the
-docs page hosting the full `ChoiceAnswer`/`ScoreAnswer` type definitions 404'd when
-fetched directly. **The adapter below reads these defensively (`getattr(..., None)`)**
-so an imprecise field name degrades to "confidence unknown" instead of crashing.
+**Retry policy** (`RetryPolicy` dataclass, read verbatim): default
+`max_retries=2, backoff_initial=0.5, backoff_max=5.0, backoff_jitter=0.25,
+respect_retry_after=True, timeout=30.0`, retries on configurable `http_statuses` plus
+connection/timeout errors. Configurable via `retry=RetryPolicy(...)` on the client or
+per-call.
 
-Usage/token/cost fields: the docs mention the response carries "model and token usage
-details" but I could not get a verbatim field name for them from a live fetch. The
-adapter stores `estimated_cost_usd=None` unless a real field is found at integration
-time — never computed from the vendor's published per-token rate, which would count as
-fabricating a cost the SDK itself didn't report.
+**Model listing API**: `client.models` / `AsyncTypeSafeClient(...).models` (types
+`Models`/`AsyncModels`) exposes a `list()`-style call returning
+`ListModelsResponse{models: tuple[ModelMetadata, ...]}` where
+`ModelMetadata{name: str, description: str, release_date: str}`. This lets a caller
+enumerate models actually available to the account. Not required for the adapter's core
+`system_one()` call, but is the mechanism a future readiness check could use to validate
+`JEV_MODEL` against real account access once a key exists.
 
-## Errors
+**What Jev is** (from `https://typesafe.ai/blog/introducing-system-one-models-and-jev`,
+a public source, treated as vendor marketing prose rather than an API contract): Jev is
+TypeSafe AI's first "System One Model" — a non-chat model that takes free-form `state`
+plus a set of typed `questions` (`Noul`/`Choice`/`Score`) and returns typed, calibrated
+probabilistic answers instead of free text. Positioned as fast and cheap relative to an
+equivalent LLM call. Early access, waitlist-gated; **the waitlist is currently full and
+no self-serve signup is available**, which is why this integration has no live key.
 
-Typed exception hierarchy (base `TypeSafeError`), per the official repo (confirmed via
-a GitHub issue on `typesafe-ai/typesafe-sdk-python` plus the docs' usage/exceptions
-pages — the exceptions page itself 404'd on direct fetch, so treat this list as
-high-confidence but not verbatim-quoted):
+---
 
-`TypeSafeError` → `TypeSafeAPIError` → `TypeSafeBadRequestError` (400),
-`TypeSafeAuthenticationError` (401), `TypeSafePermissionDeniedError` (403),
-`TypeSafeNotFoundError` (404), `TypeSafeUnprocessableEntityError` (422),
-`TypeSafeRateLimitError` (429, carries `retry_after_ms`), `TypeSafeInternalServerError`
-(5xx), `TypeSafeAPIConnectionError`, `TypeSafeAPITimeoutError`,
-`TypeSafeAPIResponseValidationError` (200 but the body didn't parse).
+## INFERRED / NOT VERIFIED
 
-The adapter catches the base `TypeSafeError` as its primary boundary (correct
-regardless of exact subclass spelling), and additionally checks for
-`TypeSafeAuthenticationError` / `TypeSafeAPITimeoutError` by class name where available,
-falling back to the base class if those names turn out to differ once exercised for
-real.
+Reasonable to assume from the confirmed contract above, but not something we have
+directly observed against a live response (since no live call has been made).
 
-## Early-access limitations
+- The *typical* magnitude of `.confidence`/`.probabilities` values in practice for
+  realistic ad-ops-style prompts (the field types are confirmed; their real-world
+  distribution is not).
+- Whether `TYPESAFE_BASE_URL` / `TYPESAFE_DEFAULT_MODEL` env vars are actually read by
+  `AsyncTypeSafeClient()` when no explicit `base_url=`/`model=` kwarg is passed (the
+  constants exist in `constants.py` and are named as the obvious env-var wiring point,
+  but we have not traced the constructor's env-var-reading code path line by line).
+- Exact behavior of the model-listing endpoint (`client.models.list()`-equivalent)
+  under an invalid/expired key — presumed to raise `TypeSafeAuthenticationError` like
+  every other endpoint, consistent with the shared exception hierarchy, but not observed.
 
-- Waitlist/access-gated; no public self-serve signup confirmed.
-- No `TYPESAFE_API_KEY` available in this environment → **JevGate live execution is
-  NOT RUN in this phase.** The adapter boundary is implemented and unit-testable with
-  a stub client; DecisionGate comparison evals mark Jev rows `NOT RUN`, never fabricated.
+---
+
+## NOT PUBLICLY DOCUMENTED
+
+Actively searched for (via `docs.typesafe.ai`, its `llms.txt` full page index, and
+`typesafe.ai`) and confirmed absent, not merely unread:
+
+- **Rate limits**: no requests/min, tokens/min, or concurrency limits are published
+  anywhere in the docs index or marketing site.
+- **Pricing / billing**: no per-token, per-call, or subscription pricing page exists
+  publicly. The only cost-adjacent text found anywhere is a cookbook aside claiming
+  batching multiple questions into one call is "12.2x cheaper and 10.0x faster" than
+  separate calls — a relative claim, not a rate. No dollar figures are documented.
+  (The prior revision of this document cited a specific vendor blog price of
+  "$0.042 / 1M input tokens" — that figure could not be re-confirmed against the
+  current docs index and is being dropped rather than repeated unverified.)
+- **Cost/usage reporting mechanism**: `SystemOneResponse.usage` reports
+  `input_tokens`/`output_tokens` only (confirmed above); there is no documented way to
+  convert that into a dollar cost without an undocumented, unverified rate. The adapter
+  must therefore persist `cost_usd=None` always — computing a cost from a guessed rate
+  would be fabrication, not measurement.
+
+---
+
+## Early-access status
+
+No `TYPESAFE_API_KEY` is available in this environment — **JevGate live execution is
+NOT RUN.** The adapter boundary is fully implemented and unit-tested against realistic
+deterministic fixtures that mock only the SDK/network boundary (see
+`backend/tests/test_jev_gate.py`); DecisionGate comparison evals mark Jev rows
+`NOT RUN`, never fabricated. See `docs/JEV_ACTIVATION_RUNBOOK.md` for the exact steps to
+go live once access is granted.
 
 ## Sources
 
-- https://typesafe.ai/blog/introducing-system-one-models-and-jev
-- https://docs.typesafe.ai/ (llms.txt index)
-- https://docs.typesafe.ai/sdk/python (quickstart, client constructor, usage)
-- https://github.com/typesafe-ai/typesafe-sdk-python
-- https://github.com/typesafe-ai/typesafe-sdk-python/issues/9 (exception hierarchy, API key echo bug)
+- https://typesafe.ai/blog/introducing-system-one-models-and-jev (vendor positioning/marketing — not an API contract)
+- https://docs.typesafe.ai/ and https://docs.typesafe.ai/llms.txt (full docs index)
+- `typesafe-sdk==0.7.1` on PyPI — installed and inspected directly in a scratch venv
+- Package source read verbatim: `_core/client/aio/client.py`, `_core/errors.py`,
+  `_core/question_types.py`, `_core/response_types.py`, `_schemas/models.py`,
+  `constants.py`, `__init__.py`

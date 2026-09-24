@@ -298,6 +298,9 @@ export interface MCPGateDecision {
   input_reference?: string | null;
   metadata_json?: Record<string, unknown> | null;
   schema_version: string;
+  requested_provider?: string | null;
+  fallback_reason?: string | null;
+  execution_status: string;
   created_at: string;
 }
 
