@@ -9,9 +9,18 @@ pytest marker points at it, and it is not imported by any test module).
 
 Usage:
     cd backend
-    python -m evals.gate_evaluation                       # RuleGate only (always available)
-    OPENAI_API_KEY=... python -m evals.gate_evaluation     # + LLMGate
-    TYPESAFE_API_KEY=... python -m evals.gate_evaluation   # + JevGate (needs `pip install typesafe-sdk` too - see docs/jev-integration-notes.md)
+    python -m evals.gate_evaluation                                # RuleGate only (always available)
+    OPENAI_API_KEY=... python -m evals.gate_evaluation              # + LLMGate
+    TYPESAFE_API_KEY=... python -m evals.gate_evaluation --provider jev --live
+                                                                     # + JevGate, real network calls
+
+--provider {jev,llm,rules,all}: restrict which gate(s) run (default: all
+    configured/available gates, same as no flag).
+--live: assert this run should be labeled LIVE. The report is ONLY ever
+    labeled LIVE if TYPESAFE_API_KEY is configured AND at least one real Jev
+    call in this run actually succeeded - otherwise the report explicitly
+    says why it refused the LIVE label. Passing --live never itself makes a
+    call succeed; it only changes how an already-real result is labeled.
 
 Writes docs/evals/YYYY-MM-DD-gate-report.md and a machine-readable
 .json/.csv alongside it. Every row is either a real measured result or
@@ -19,6 +28,7 @@ explicitly "NOT RUN" - never a fabricated number.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import csv
 import json
@@ -142,9 +152,12 @@ async def _run_gate(gate, case: dict[str, Any]) -> GateRunResult:
                           result.confidence, result.latency_ms, result.reason)
 
 
-async def _run_all() -> list[GateRunResult]:
+async def _run_all(provider_filter: str = "all") -> list[GateRunResult]:
     settings = get_settings()
-    gates = [RuleGate(), LLMGate(get_llm_provider(settings)), JevGate(settings)]
+    # Order preserved as rules/llm/jev regardless of --provider filtering, to
+    # keep report row ordering stable across runs (see docs/evals/*.md).
+    all_gates = {"rules": RuleGate(), "llm": LLMGate(get_llm_provider(settings)), "jev": JevGate(settings)}
+    gates = list(all_gates.values()) if provider_filter == "all" else [all_gates[provider_filter]]
     cases = _load_cases()
     results: list[GateRunResult] = []
     for case in cases:
@@ -187,16 +200,42 @@ def _percentile(values: list[int], p: float) -> float | None:
     return float(ordered[index])
 
 
-def main() -> None:
-    results = asyncio.run(_run_all())
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--provider", choices=["jev", "llm", "rules", "all"], default="all")
+    parser.add_argument(
+        "--live", action="store_true",
+        help="Assert this run should be labeled LIVE - refused unless TYPESAFE_API_KEY is set AND a real Jev call succeeds.",
+    )
+    return parser.parse_args(argv)
+
+
+def _determine_live_label(live_requested: bool, results: list[GateRunResult]) -> str:
+    """The one place a report is allowed to say the word LIVE. Never trust the
+    caller's intent alone - only a real TYPESAFE_API_KEY plus at least one
+    actually-successful Jev call in *this* run earns the label."""
+    if not live_requested:
+        return "NOT LIVE (--live was not passed)"
+    if not get_settings().typesafe_api_key:
+        return "NOT LIVE (--live was passed but TYPESAFE_API_KEY is not configured)"
+    jev_ok = [r for r in results if r.gate_type == "jev" and r.status == "ok"]
+    if not jev_ok:
+        return "NOT LIVE (--live was passed and a key is configured, but no Jev call actually succeeded this run)"
+    return f"LIVE ({len(jev_ok)} real Jev call(s) succeeded this run)"
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
+    results = asyncio.run(_run_all(args.provider))
     summary = _summarize(results)
+    live_label = _determine_live_label(args.live, results)
 
     out_dir = ROOT.parent / "docs" / "evals"
     out_dir.mkdir(parents=True, exist_ok=True)
     date_tag = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     json_path = out_dir / f"{date_tag}-gate-report.json"
-    json_path.write_text(json.dumps({"summary": summary, "results": [asdict(r) for r in results]}, indent=2))
+    json_path.write_text(json.dumps({"live_label": live_label, "summary": summary, "results": [asdict(r) for r in results]}, indent=2))
 
     csv_path = out_dir / f"{date_tag}-gate-report.csv"
     with csv_path.open("w", newline="") as f:
@@ -206,15 +245,18 @@ def main() -> None:
             writer.writerow([r.case_id, r.gate_type, r.status, r.decision, r.expected, r.correct, r.confidence, r.latency_ms, r.reason])
 
     md_path = out_dir / f"{date_tag}-gate-report.md"
-    md_path.write_text(_render_markdown(summary, results, date_tag))
+    md_path.write_text(_render_markdown(summary, results, date_tag, live_label))
 
     print(f"Wrote {md_path}, {json_path}, {csv_path}")
+    print(f"Live label: {live_label}")
     print(json.dumps(summary, indent=2))
 
 
-def _render_markdown(summary: dict[str, Any], results: list[GateRunResult], date_tag: str) -> str:
+def _render_markdown(summary: dict[str, Any], results: list[GateRunResult], date_tag: str, live_label: str = "NOT LIVE (not requested)") -> str:
     lines = [
         f"# Gate Comparison Report — {date_tag}", "",
+        f"**{live_label}**",
+        "",
         "Real measured results only. `NOT RUN` means the gate had no credentials configured in this environment - never a fabricated number.",
         "",
         "**Caveat on RuleGate accuracy:** case A08 (`client_brief_unsupported_publisher_blame`) scores 'correct' only "

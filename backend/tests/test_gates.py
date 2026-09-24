@@ -20,7 +20,6 @@ from app.gates.decision_points import (
     evidence_verification,
     risk_routing,
 )
-from app.gates.jev_gate import JevGate
 from app.gates.llm_gate import LLMGate
 from app.gates.rule_gate import RuleGate
 
@@ -127,24 +126,11 @@ def test_rule_gate_evidence_verification_supported_with_overlap():
     assert result.decision == "supported"
 
 
-# --- JevGate: honest unavailability -----------------------------------------
-
-
-def test_jev_gate_unavailable_without_api_key():
-    gate = JevGate(Settings(typesafe_api_key=None))
-    assert gate.available is False
-    with pytest.raises(GateUnavailable):
-        run(gate.decide(DecisionRequest(
-            decision_point="risk_routing", run_id=1, campaign_id=1045, state={},
-            allowed_decisions=RISK_ROUTING_DECISIONS, rule_floor="auto_recommend",
-        )))
-
-
-def test_jev_gate_unavailable_without_sdk_installed_even_with_key():
-    # typesafe-sdk is not in requirements.txt yet (pending approval) - even with a
-    # key configured, the gate must report unavailable rather than crash on import.
-    gate = JevGate(Settings(typesafe_api_key="fake-key-for-test"))
-    assert gate.available is False
+# --- JevGate: see tests/test_jev_gate.py for the full JevGate test suite ----
+# (honest unavailability, all error-category fallback paths, safety-contract
+# interaction, and the mocked-remote-boundary success paths). Kept out of this
+# file to keep the two concerns - generic gate-chain behavior vs. JevGate's
+# provider-specific contract - separately testable.
 
 
 # --- LLMGate: structural correctness with a scripted provider ---------------
@@ -267,7 +253,7 @@ def test_evidence_verification_decision_point_marks_unsupported():
     chain = get_decision_gate_chain(settings)
     result = run(evidence_verification(
         run_id=1, campaign_id=1045, cause_text="Bid price below floor is limiting wins",
-        evidence_text="creative rejected, VAST error count 4", chain=chain,
+        evidence_text="creative rejected, VAST error count 4", chain=chain, settings=settings,
     ))
     assert result.decision == "unsupported"
 
@@ -277,6 +263,6 @@ def test_client_safe_brief_decision_point_blocks_leaky_text():
     chain = get_decision_gate_chain(settings)
     result = run(client_safe_brief_check(
         run_id=1, campaign_id=1045, brief_text="Publisher floor price was the loss reason, per sql_analysis_tool output.",
-        chain=chain,
+        chain=chain, settings=settings,
     ))
     assert result.decision == "block"
