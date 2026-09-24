@@ -267,6 +267,7 @@ class MCPToolCallRead(BaseModel):
     output_json: dict[str, Any]
     status: str
     latency_ms: int
+    error_category: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -325,6 +326,16 @@ class AgentRunRead(BaseModel):
     approval_required: bool
     created_at: datetime
     completed_at: Optional[datetime] = None
+    execution_mode: str = "deterministic_fallback"
+    llm_provider: Optional[str] = None
+    model_name: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    estimated_cost_usd: Optional[float] = None
+    steps_used: Optional[int] = None
+    max_steps: Optional[int] = None
+    fallback_reason: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -379,6 +390,17 @@ class MCPAgentRunResponse(BaseModel):
     blocked: bool
     final_recommendation: str
     tool_timeline: list[MCPToolTimelineEntry]
+    execution_mode: str = "deterministic_fallback"
+    llm_provider: Optional[str] = None
+    model_name: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    estimated_cost_usd: Optional[float] = None
+    steps_used: Optional[int] = None
+    max_steps: Optional[int] = None
+    fallback_reason: Optional[str] = None
+    tools_selected: list[str] = Field(default_factory=list)
 
 
 class MCPSummary(BaseModel):

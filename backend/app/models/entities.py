@@ -210,6 +210,20 @@ class AgentRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Governed MCP agent observability (Phase 1). execution_mode is always
+    # set; the rest are populated only for execution_mode="llm_mcp_agent" and
+    # stay NULL for "deterministic_fallback" runs - never fabricated.
+    execution_mode: Mapped[str] = mapped_column(String(40), nullable=False, default="deterministic_fallback")
+    llm_provider: Mapped[Optional[str]] = mapped_column(String(40))
+    model_name: Mapped[Optional[str]] = mapped_column(String(120))
+    input_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+    output_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+    total_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+    estimated_cost_usd: Mapped[Optional[float]] = mapped_column(Float)
+    steps_used: Mapped[Optional[int]] = mapped_column(Integer)
+    max_steps: Mapped[Optional[int]] = mapped_column(Integer)
+    fallback_reason: Mapped[Optional[str]] = mapped_column(String(80))
+
     campaign: Mapped[Campaign] = relationship()
     tool_calls: Mapped[list["MCPToolCall"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
     approval_requests: Mapped[list["ApprovalRequest"]] = relationship(
@@ -231,6 +245,7 @@ class MCPToolCall(Base):
     output_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(40), nullable=False)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_category: Mapped[Optional[str]] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
 
     agent_run: Mapped[AgentRun] = relationship(back_populates="tool_calls")

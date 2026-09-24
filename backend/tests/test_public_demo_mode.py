@@ -5,8 +5,19 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.agent import AdOpsSignalAgent
+from app.api.mcp import run_mcp_agent
 from app.database import Base
-from app.models import AgentAuditLog, Campaign, Recommendation
+from app.models import (
+    AgentAuditLog,
+    AgentRun,
+    ApprovalRequest,
+    BlockedAction,
+    Campaign,
+    MCPToolCall,
+    PolicyCheck,
+    Recommendation,
+)
+from app.schemas import MCPAgentRunRequest
 from app.security import (
     DEMO_VIEWER_ROLE,
     build_demo_viewer,
@@ -84,3 +95,33 @@ def test_diagnose_with_persist_false_writes_no_audit_or_recommendation_rows(tmp_
     snapshot_after = {item.id: (item.description, item.status) for item in recommendations_after}
     assert snapshot_after == snapshot_before
     assert len(recommendations_after) == len(recommendations_before)
+
+
+def test_demo_viewer_role_is_rejected_by_mcp_agent_run_endpoint():
+    """The MCP governance run endpoint has no persist=False path - it always writes
+    agent_runs/mcp_tool_calls/approval_requests/policy_checks/blocked_actions - so
+    demo_viewer must be rejected at the role dependency, not inside the handler."""
+    demo_user = build_demo_viewer()
+    dependency = require_roles("admin", "adops_manager", "product_manager")
+    with pytest.raises(HTTPException) as excinfo:
+        dependency(user=demo_user)
+    assert excinfo.value.status_code == 403
+
+
+def test_demo_viewer_cannot_create_any_mcp_governance_writes(tmp_path):
+    db = session_with_seed(tmp_path)
+    demo_user = build_demo_viewer()
+
+    with pytest.raises(HTTPException) as excinfo:
+        run_mcp_agent(
+            MCPAgentRunRequest(user_query="Why is RheinAuto behind pacing?", campaign_id="1045"),
+            db=db,
+            _=require_roles("admin", "adops_manager", "product_manager")(user=demo_user),
+        )
+    assert excinfo.value.status_code == 403
+
+    assert db.execute(select(AgentRun)).first() is None
+    assert db.execute(select(MCPToolCall)).first() is None
+    assert db.execute(select(ApprovalRequest)).first() is None
+    assert db.execute(select(PolicyCheck)).first() is None
+    assert db.execute(select(BlockedAction)).first() is None

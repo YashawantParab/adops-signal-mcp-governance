@@ -136,7 +136,10 @@ def reject_mcp_approval(
 def run_mcp_agent(
     payload: MCPAgentRunRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles("admin", "adops_manager", "product_manager", DEMO_VIEWER_ROLE)),
+    # Deliberately excludes DEMO_VIEWER_ROLE: this endpoint writes agent_runs,
+    # mcp_tool_calls, approval_requests, policy_checks, and blocked_actions rows,
+    # and the public demo must never write governance data (see test_public_demo_mode.py).
+    _: User = Depends(require_roles("admin", "adops_manager", "product_manager")),
 ) -> MCPAgentRunResponse:
     try:
         return run_agent_orchestration(db, payload.user_query, payload.campaign_id)

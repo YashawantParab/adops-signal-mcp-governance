@@ -1,13 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 
+import { useAuth } from "@/components/AuthProvider";
 import { MCPAgentRunResult } from "@/components/MCPAgentRunResult";
 import { PageHeader } from "@/components/PageHeader";
 import { ErrorState, LoadingState } from "@/components/StateViews";
-import { api } from "@/lib/api";
+import { api, DEMO_VIEWER_ROLE } from "@/lib/api";
 import type { CampaignSummary, MCPAgentRunDetail, MCPAgentRunResponse, MCPToolDescriptor } from "@/types";
 
 const DEFAULT_SEED_CAMPAIGN_ID = 1045;
@@ -17,6 +19,8 @@ const QUERY_PLACEHOLDER =
 function AgentConsoleWorkspace() {
   const searchParams = useSearchParams();
   const initialCampaignId = Number(searchParams.get("campaignId")) || DEFAULT_SEED_CAMPAIGN_ID;
+  const { user } = useAuth();
+  const isDemoViewer = user?.role === DEMO_VIEWER_ROLE;
 
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [campaignId, setCampaignId] = useState<number | "">("");
@@ -53,7 +57,7 @@ function AgentConsoleWorkspace() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!campaignId || !query.trim()) return;
+    if (!campaignId || !query.trim() || isDemoViewer) return;
     setRunning(true);
     setError(null);
     setResult(null);
@@ -116,11 +120,21 @@ function AgentConsoleWorkspace() {
             />
           </label>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex items-center justify-end gap-4">
+          {isDemoViewer ? (
+            <p className="text-sm text-slate-600">
+              Public demo is read-only.{" "}
+              <Link href="/" className="font-semibold text-accent hover:text-teal-700">
+                Use the full demo login
+              </Link>{" "}
+              to run a governed investigation.
+            </p>
+          ) : null}
           <button
             type="submit"
             className="focus-ring inline-flex items-center justify-center rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60"
-            disabled={!campaignId || !query.trim() || running}
+            disabled={!campaignId || !query.trim() || running || isDemoViewer}
+            title={isDemoViewer ? "Public demo is read-only" : undefined}
           >
             <ShieldCheck className="mr-2" size={16} aria-hidden="true" />
             {running ? "Running Governance Analysis" : "Run Governance Analysis"}

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 import time
 from pathlib import Path
@@ -8,6 +10,9 @@ from typing import Any
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.agent.mcp_agent_runtime import AgentRunOutcome, AgentTerminated, run_governed_mcp_agent
+from app.agent.providers import LLMProvider, get_llm_provider
+from app.config import Settings, get_settings
 from app.models import (
     AgentRun,
     ApprovalRequest,
@@ -38,6 +43,8 @@ from app.services.json_fields import parse_list
 from app.services.recommendation_service import list_recommendations
 from app.services.vast_service import suggested_fix_for_errors
 from app.time_utils import utc_now
+
+logger = logging.getLogger(__name__)
 
 
 class ApprovalRequestAlreadyDecidedError(ValueError):
@@ -530,6 +537,13 @@ def _build_rationale(
 
 
 def run_agent_orchestration(db: Session, user_query: str, campaign_id_raw: str) -> MCPAgentRunResponse:
+    """Public entrypoint for POST /api/mcp/agent/run.
+
+    Dispatches to the real governed LLM + MCP agent when a provider is
+    configured and the feature is enabled; degrades to the deterministic
+    orchestration on any failure, with an honest, persisted fallback_reason.
+    Never silently pretends the LLM/MCP path ran when it did not.
+    """
     campaign_id = _parse_campaign_id(campaign_id_raw)
     if campaign_id is None:
         raise InvalidCampaignIdError(f"campaign_id must be a positive integer, received {campaign_id_raw!r}")
@@ -538,6 +552,27 @@ def run_agent_orchestration(db: Session, user_query: str, campaign_id_raw: str) 
     if campaign is None:
         raise CampaignNotFoundError(f"Campaign {campaign_id} was not found")
 
+    settings = get_settings()
+    if not settings.mcp_agent_enabled:
+        return run_deterministic_fallback_orchestration(db, campaign, user_query, fallback_reason="mcp_agent_disabled")
+
+    provider = get_llm_provider(settings)
+    try:
+        return asyncio.run(_run_llm_mcp_agent_orchestration(db, campaign, user_query, provider, settings))
+    except AgentTerminated as exc:
+        db.rollback()
+        logger.info("Governed MCP agent fell back to deterministic orchestration: %s", exc.reason_code)
+        return run_deterministic_fallback_orchestration(db, campaign, user_query, fallback_reason=exc.reason_code)
+    except Exception:  # defensive boundary: an unexpected agent bug must never break the demo
+        db.rollback()
+        logger.exception("Unexpected governed MCP agent failure; falling back to deterministic orchestration")
+        return run_deterministic_fallback_orchestration(db, campaign, user_query, fallback_reason="unexpected_agent_error")
+
+
+async def _run_llm_mcp_agent_orchestration(
+    db: Session, campaign: Campaign, user_query: str, provider: LLMProvider, settings: Settings
+) -> MCPAgentRunResponse:
+    campaign_id = campaign.id
     run = AgentRun(
         user_query=user_query.strip(),
         campaign_id=campaign_id,
@@ -546,6 +581,199 @@ def run_agent_orchestration(db: Session, user_query: str, campaign_id_raw: str) 
         risk_score=0.0,
         final_recommendation="",
         approval_required=False,
+        execution_mode="llm_mcp_agent",
+        max_steps=settings.max_agent_steps,
+    )
+    db.add(run)
+    db.flush()
+
+    outcome = await run_governed_mcp_agent(
+        db,
+        agent_run_id=run.id,
+        campaign_id=campaign_id,
+        user_query=user_query,
+        provider=provider,
+        settings=settings,
+    )
+
+    # Rule floor: the SAME deterministic scoring the fallback path uses,
+    # computed independently of which MCP tools the agent chose to call -
+    # this is the "existing rule risk floor" step in the target architecture
+    # (LLM reasoning -> proposed action -> rule risk floor -> governance),
+    # not an MCP tool call, so it is never logged as one.
+    health, _ = _timed(lambda: compute_campaign_health(db, campaign))
+    vast_output, _ = _timed(lambda: _vast_validation_summary(db, campaign))
+    brand_output, _ = _timed(lambda: _brand_safety_findings(db, campaign))
+    policy_output, _ = _timed(lambda: _search_policy_context(f"{user_query} {health.main_suspected_issue}".strip()))
+
+    risk_score, risk_level = _score_risk(health, vast_output, brand_output)
+    top_cause = outcome.grounded_root_causes[0]
+    proposed_action = f"{top_cause.recommendation_title}: {top_cause.recommendation_description}"
+    rationale = f"{outcome.diagnosis.diagnosis} {_build_rationale(health, vast_output, brand_output, policy_output)}"
+
+    approval_required = risk_level in ("HIGH", "CRITICAL")
+    blocked = risk_level == "CRITICAL"
+
+    if risk_level == "HIGH":
+        db.add(
+            ApprovalRequest(
+                agent_run_id=run.id,
+                campaign_id=campaign_id,
+                proposed_action=proposed_action,
+                risk_score=risk_score,
+                risk_level=risk_level,
+                rationale=rationale,
+                status="pending",
+            )
+        )
+    elif risk_level == "CRITICAL":
+        db.add(
+            BlockedAction(
+                agent_run_id=run.id,
+                tool_name="execute_proposed_action",
+                reason=rationale,
+                risk_level=risk_level,
+            )
+        )
+
+    db.add(
+        PolicyCheck(
+            agent_run_id=run.id,
+            policy_name=policy_output["matches"][0]["title"] if policy_output["matches"] else "No policy match",
+            result="blocked" if blocked else "approval_required" if approval_required else (
+                "review_required" if risk_level == "MEDIUM" else "clear"
+            ),
+            matched_rules=policy_output["matches"][0]["matched_keywords"] if policy_output["matches"] else [],
+            citation=policy_output["matches"][0]["source"] if policy_output["matches"] else "no local policy match",
+        )
+    )
+
+    if blocked:
+        final_recommendation = (
+            f"BLOCKED: {proposed_action} cannot execute automatically ({rationale}). "
+            "Escalated for human review; no campaign changes were made."
+        )
+    elif approval_required:
+        final_recommendation = (
+            f"Recommend: {proposed_action} Routed for human approval before execution; "
+            "no campaign changes were made."
+        )
+    else:
+        final_recommendation = (
+            f"Recommend: {proposed_action} No further governance escalation required; "
+            "no campaign changes were made."
+        )
+
+    run.status = "completed"
+    run.risk_level = risk_level
+    run.risk_score = risk_score
+    run.final_recommendation = final_recommendation
+    run.approval_required = approval_required
+    run.completed_at = utc_now()
+    run.llm_provider = outcome.provider_name
+    run.model_name = outcome.model_name
+    run.input_tokens = outcome.total_input_tokens
+    run.output_tokens = outcome.total_output_tokens
+    run.total_tokens = outcome.total_tokens
+    run.estimated_cost_usd = None  # never fabricated: neither provider SDK returns a $ cost here
+    run.steps_used = outcome.steps_used
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    summary = f"Campaign {campaign_id} ({campaign.campaign_name}): {outcome.diagnosis.diagnosis}"
+
+    return MCPAgentRunResponse(
+        agent_run_id=str(run.id),
+        status="completed",
+        campaign_id=str(campaign_id),
+        summary=summary,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        approval_required=approval_required,
+        blocked=blocked,
+        final_recommendation=final_recommendation,
+        tool_timeline=_build_llm_timeline(run, outcome, approval_required=approval_required, blocked=blocked),
+        execution_mode="llm_mcp_agent",
+        llm_provider=outcome.provider_name,
+        model_name=outcome.model_name,
+        input_tokens=outcome.total_input_tokens,
+        output_tokens=outcome.total_output_tokens,
+        total_tokens=outcome.total_tokens,
+        estimated_cost_usd=None,
+        steps_used=outcome.steps_used,
+        max_steps=settings.max_agent_steps,
+        fallback_reason=None,
+        tools_selected=outcome.tools_selected,
+    )
+
+
+def _build_llm_timeline(
+    run: AgentRun, outcome: AgentRunOutcome, *, approval_required: bool, blocked: bool
+) -> list[MCPToolTimelineEntry]:
+    timeline = [
+        MCPToolTimelineEntry(
+            step=1,
+            tool_name="create_agent_run",
+            status="success",
+            latency_ms=0,
+            summary=(
+                f"Created agent run {run.id} for campaign {run.campaign_id} "
+                f"(llm_mcp_agent via {outcome.provider_name}/{outcome.model_name})."
+            ),
+        )
+    ]
+    for index, tool_outcome in enumerate(outcome.tool_outcomes, start=2):
+        timeline.append(
+            MCPToolTimelineEntry(
+                step=index,
+                tool_name=tool_outcome.tool_name,
+                status="success" if tool_outcome.ok else "failed",
+                latency_ms=tool_outcome.latency_ms,
+                summary=(
+                    "MCP tool call succeeded (real MCP protocol)."
+                    if tool_outcome.ok
+                    else f"MCP tool call failed: {tool_outcome.error_category}."
+                ),
+            )
+        )
+    next_step = len(outcome.tool_outcomes) + 2
+    if blocked:
+        timeline.append(
+            MCPToolTimelineEntry(
+                step=next_step, tool_name="create_blocked_action", status="success", latency_ms=0,
+                summary="CRITICAL risk action blocked pending human review.",
+            )
+        )
+    elif approval_required:
+        timeline.append(
+            MCPToolTimelineEntry(
+                step=next_step, tool_name="create_approval_request", status="success", latency_ms=0,
+                summary="HIGH risk action requires human approval before execution.",
+            )
+        )
+    return timeline
+
+
+def run_deterministic_fallback_orchestration(
+    db: Session, campaign: Campaign, user_query: str, *, fallback_reason: str | None = None
+) -> MCPAgentRunResponse:
+    """The original, unchanged deterministic orchestration (no LLM, no MCP client
+    - direct internal service calls, logged as mcp_tool_calls for backward-
+    compatible audit shape). Now explicitly labeled execution_mode=
+    "deterministic_fallback", with fallback_reason set whenever this ran
+    because the governed LLM + MCP agent path was unavailable or failed."""
+    campaign_id = campaign.id
+    run = AgentRun(
+        user_query=user_query.strip(),
+        campaign_id=campaign_id,
+        status="running",
+        risk_level="LOW",
+        risk_score=0.0,
+        final_recommendation="",
+        approval_required=False,
+        execution_mode="deterministic_fallback",
+        fallback_reason=fallback_reason,
     )
     db.add(run)
     db.flush()

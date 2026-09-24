@@ -20,6 +20,25 @@ class Settings(BaseSettings):
     llm_enabled: bool = True
     rag_embedding_provider: str = "local"
     rag_embedding_model: str = "text-embedding-3-small"
+
+    # Governed MCP agent (Phase 1) -------------------------------------------------
+    llm_provider: str = "openai"  # "openai" | "anthropic" - selects the provider used by the governed MCP agent
+    anthropic_api_key: Optional[str] = None
+    anthropic_model: str = "claude-sonnet-5"
+    anthropic_timeout_seconds: float = 25.0
+    mcp_agent_enabled: bool = True
+    # Empty by default so the MCP client falls back to sys.executable - the
+    # exact interpreter/venv the backend itself is running under, guaranteeing
+    # the mcp-server subprocess has every dependency the backend has. Only
+    # override this if the MCP server must run under a different interpreter.
+    mcp_server_command: str = ""
+    mcp_server_args: str = "-m adops_signal_mcp.server"
+    mcp_server_cwd: Optional[str] = None  # defaults to <repo_root>/mcp-server when unset
+    max_agent_steps: int = 6
+    max_agent_tool_calls: int = 6
+    max_agent_tokens: int = 20000
+    agent_timeout_seconds: float = 45.0
+    max_run_cost_usd: Optional[float] = None
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
@@ -48,6 +67,12 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
+
+    @property
+    def mcp_agent_llm_available(self) -> bool:
+        if self.llm_provider == "anthropic":
+            return bool(self.anthropic_api_key)
+        return bool(self.openai_api_key)
 
 
 @lru_cache
