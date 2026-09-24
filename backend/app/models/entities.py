@@ -360,3 +360,77 @@ class KnowledgeChunk(Base):
     embedding_provider: Mapped[str] = mapped_column(String(80), nullable=False)
     checksum: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+
+class ProposedAction(Base):
+    """A proposed synthetic ad-server change (Phase 3). Lifecycle: proposed ->
+    pending_approval -> approved -> executed -> verified, or blocked / failed /
+    rolled_back. Approval is delegated to the existing ApprovalRequest table
+    (one unified approval queue for both diagnosis and action-execution
+    approvals) rather than a second parallel approval mechanism."""
+
+    __tablename__ = "proposed_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id"), nullable=False, index=True)
+    agent_run_id: Mapped[Optional[int]] = mapped_column(ForeignKey("agent_runs.id"))
+    approval_request_id: Mapped[Optional[int]] = mapped_column(ForeignKey("approval_requests.id"))
+    action_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    requested_params: Mapped[dict] = mapped_column(JSON, nullable=False)
+    risk_class: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="proposed")
+    proposed_by: Mapped[str] = mapped_column(String(80), nullable=False)  # "agent" or a user identifier
+    state_version: Mapped[Optional[str]] = mapped_column(String(64))  # hash of before_state+params at approval time
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    campaign: Mapped[Campaign] = relationship()
+    approval_request: Mapped[Optional["ApprovalRequest"]] = relationship()
+    executions: Mapped[list["ActionExecution"]] = relationship(back_populates="proposed_action", cascade="all, delete-orphan")
+
+
+class ActionExecution(Base):
+    __tablename__ = "action_executions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proposed_action_id: Mapped[int] = mapped_column(ForeignKey("proposed_actions.id"), nullable=False, index=True)
+    executed_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    before_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    after_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)  # executed | failed
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    executed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    proposed_action: Mapped[ProposedAction] = relationship(back_populates="executions")
+    executor: Mapped["User"] = relationship()
+    verifications: Mapped[list["ActionVerification"]] = relationship(back_populates="action_execution", cascade="all, delete-orphan")
+    rollbacks: Mapped[list["ActionRollback"]] = relationship(back_populates="action_execution", cascade="all, delete-orphan")
+
+
+class ActionVerification(Base):
+    __tablename__ = "action_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action_execution_id: Mapped[int] = mapped_column(ForeignKey("action_executions.id"), nullable=False, index=True)
+    expected_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    actual_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(40), nullable=False)  # verified | mismatch
+    mismatch_reason: Mapped[Optional[str]] = mapped_column(Text)
+    verified_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    action_execution: Mapped[ActionExecution] = relationship(back_populates="verifications")
+
+
+class ActionRollback(Base):
+    __tablename__ = "action_rollbacks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action_execution_id: Mapped[int] = mapped_column(ForeignKey("action_executions.id"), nullable=False, index=True)
+    rolled_back_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    restored_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    actual_state_after: Mapped[dict] = mapped_column(JSON, nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(40), nullable=False)  # verified | mismatch
+    rolled_back_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    action_execution: Mapped[ActionExecution] = relationship(back_populates="rollbacks")
+    actor: Mapped["User"] = relationship()

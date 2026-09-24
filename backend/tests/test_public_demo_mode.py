@@ -5,9 +5,11 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.agent import AdOpsSignalAgent
+from app.api.actions import propose
 from app.api.mcp import run_mcp_agent
 from app.database import Base
 from app.models import (
+    ActionExecution,
     AgentAuditLog,
     AgentRun,
     ApprovalRequest,
@@ -16,9 +18,10 @@ from app.models import (
     GateDecision,
     MCPToolCall,
     PolicyCheck,
+    ProposedAction,
     Recommendation,
 )
-from app.schemas import MCPAgentRunRequest
+from app.schemas import MCPAgentRunRequest, ProposeActionRequest
 from app.security import (
     DEMO_VIEWER_ROLE,
     build_demo_viewer,
@@ -127,3 +130,19 @@ def test_demo_viewer_cannot_create_any_mcp_governance_writes(tmp_path):
     assert db.execute(select(PolicyCheck)).first() is None
     assert db.execute(select(BlockedAction)).first() is None
     assert db.execute(select(GateDecision)).first() is None  # Phase 2: gate decisions too
+
+
+def test_demo_viewer_cannot_propose_a_synthetic_action(tmp_path):
+    db = session_with_seed(tmp_path)
+    demo_user = build_demo_viewer()
+
+    with pytest.raises(HTTPException) as excinfo:
+        propose(
+            ProposeActionRequest(campaign_id=1045, action_type="adjust_frequency_cap", requested_params={"new_frequency_cap": 3}),
+            db=db,
+            user=require_roles("admin", "adops_manager", "product_manager")(user=demo_user),
+        )
+    assert excinfo.value.status_code == 403
+
+    assert db.execute(select(ProposedAction)).first() is None
+    assert db.execute(select(ActionExecution)).first() is None

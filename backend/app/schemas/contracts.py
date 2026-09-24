@@ -463,3 +463,74 @@ class RoiEstimate(BaseModel):
     total_monthly_value_eur: float
     annualized_value_eur: float
     assumptions: RoiAssumptions
+
+
+# --- Synthetic action execution (Phase 3) -----------------------------------
+
+
+class ProposeActionRequest(BaseModel):
+    campaign_id: int
+    action_type: str
+    requested_params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ActionDecisionRequest(BaseModel):
+    rationale: str = Field(min_length=3, max_length=500)
+
+
+class ActionVerificationRead(BaseModel):
+    id: int
+    action_execution_id: int
+    expected_state: dict[str, Any]
+    actual_state: dict[str, Any]
+    verification_status: str
+    mismatch_reason: Optional[str] = None
+    verified_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ActionRollbackRead(BaseModel):
+    id: int
+    action_execution_id: int
+    rolled_back_by: int
+    restored_state: dict[str, Any]
+    actual_state_after: dict[str, Any]
+    verification_status: str
+    rolled_back_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ActionExecutionRead(BaseModel):
+    id: int
+    proposed_action_id: int
+    executed_by: int
+    before_state: dict[str, Any]
+    after_state: dict[str, Any]
+    status: str
+    error_message: Optional[str] = None
+    executed_at: datetime
+    verifications: list[ActionVerificationRead] = Field(default_factory=list)
+    rollbacks: list[ActionRollbackRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProposedActionRead(BaseModel):
+    id: int
+    campaign_id: int
+    campaign_name: Optional[str] = None
+    agent_run_id: Optional[int] = None
+    approval_request_id: Optional[int] = None
+    action_type: str
+    requested_params: dict[str, Any]
+    risk_class: str
+    status: str
+    proposed_by: str
+    created_at: datetime
+    updated_at: datetime
+    approval_status: Optional[str] = None
+    executions: list[ActionExecutionRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
