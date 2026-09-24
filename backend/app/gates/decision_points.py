@@ -16,11 +16,12 @@ live agent loop; see docs/jev-integration-notes.md / CLAUDE.md for why):
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
 from app.config import Settings
-from app.gates.base import DecisionGate, DecisionRequest, DecisionResult, apply_rule_floor
+from app.gates.base import DecisionGate, DecisionRequest, DecisionResult, apply_confidence_floor, apply_rule_floor
 
 RISK_ROUTING_DECISIONS = ["auto_recommend", "require_approval", "block"]
 EVIDENCE_VERIFICATION_DECISIONS = ["supported", "unsupported", "uncertain"]
@@ -62,7 +63,7 @@ async def risk_routing(
 
 
 async def evidence_verification(
-    *, run_id: int, campaign_id: int, cause_text: str, evidence_text: str, chain: list[DecisionGate],
+    *, run_id: int, campaign_id: int, cause_text: str, evidence_text: str, chain: list[DecisionGate], settings: Settings,
 ) -> DecisionResult:
     from app.gates import decide_with_fallback
 
@@ -73,11 +74,24 @@ async def evidence_verification(
         state={"cause_text": cause_text, "evidence_text": evidence_text},
         allowed_decisions=EVIDENCE_VERIFICATION_DECISIONS,
     )
-    return await decide_with_fallback(request, chain)
+    result = await decide_with_fallback(request, chain)
+    # Safety contract: a low-confidence "supported" (the permissive outcome - it
+    # keeps the cause) must never pass through un-escalated. "unsupported" and
+    # "uncertain" are already conservative outcomes on their own and are never
+    # touched here.
+    final_decision = apply_confidence_floor(
+        result.decision, confidence=result.confidence, confidence_threshold=settings.gate_confidence_threshold,
+        permissive_decision="supported", conservative_decision="uncertain",
+    )
+    if final_decision != result.decision:
+        return dataclasses.replace(
+            result, decision=final_decision, metadata={**result.metadata, "raw_gate_decision": result.decision, "escalated_reason": "low confidence"},
+        )
+    return result
 
 
 async def client_safe_brief_check(
-    *, run_id: int, campaign_id: int, brief_text: str, chain: list[DecisionGate],
+    *, run_id: int, campaign_id: int, brief_text: str, chain: list[DecisionGate], settings: Settings,
 ) -> DecisionResult:
     from app.gates import decide_with_fallback
 
@@ -88,7 +102,19 @@ async def client_safe_brief_check(
         state={"brief_text": brief_text},
         allowed_decisions=CLIENT_SAFE_BRIEF_DECISIONS,
     )
-    return await decide_with_fallback(request, chain)
+    result = await decide_with_fallback(request, chain)
+    # Safety contract: a low-confidence "safe" (the permissive outcome - it
+    # releases the brief to the client) must never pass through un-escalated.
+    # "needs_review" and "block" are already conservative and never touched.
+    final_decision = apply_confidence_floor(
+        result.decision, confidence=result.confidence, confidence_threshold=settings.gate_confidence_threshold,
+        permissive_decision="safe", conservative_decision="needs_review",
+    )
+    if final_decision != result.decision:
+        return dataclasses.replace(
+            result, decision=final_decision, metadata={**result.metadata, "raw_gate_decision": result.decision, "escalated_reason": "low confidence"},
+        )
+    return result
 
 
 async def tool_scope_check(

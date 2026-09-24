@@ -42,6 +42,9 @@ def persist_gate_decision(
         input_reference=_hash_state(input_state) if input_state else None,
         metadata_json=result.metadata or None,
         schema_version=result.schema_version,
+        requested_provider=result.requested_provider,
+        fallback_reason=result.fallback_reason,
+        execution_status=result.execution_status,
     )
     db.add(row)
     db.flush()

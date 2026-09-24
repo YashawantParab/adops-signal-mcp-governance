@@ -591,6 +591,7 @@ async def _run_llm_mcp_agent_orchestration(
         cause_text = f"{cause.cause}. {cause.recommendation_description}"
         verification = await evidence_verification(
             run_id=run.id, campaign_id=campaign_id, cause_text=cause_text, evidence_text=evidence_text, chain=gate_chain,
+            settings=settings,
         )
         persist_gate_decision(
             db, agent_run_id=run.id, campaign_id=campaign_id, decision_point="evidence_verification",
@@ -646,6 +647,7 @@ async def _run_llm_mcp_agent_orchestration(
     # auto-released or silently rewritten (flag -> review -> audit).
     brief_check = await client_safe_brief_check(
         run_id=run.id, campaign_id=campaign_id, brief_text=outcome.diagnosis.client_safe_brief, chain=gate_chain,
+        settings=settings,
     )
     persist_gate_decision(
         db, agent_run_id=run.id, campaign_id=campaign_id, decision_point="client_safe_brief",

@@ -54,16 +54,23 @@ async def decide_with_fallback(request: DecisionRequest, chain: list[DecisionGat
     """Try each gate in the configured chain in order; the first one that
     answers wins. RuleGate is always available and always last, so this never
     raises - it always returns a real DecisionResult, with `metadata`
-    recording which gates were skipped and why."""
+    recording which gates were skipped and why, and `requested_provider` /
+    `fallback_reason` / `execution_status` set so an observer never has to
+    infer what happened from latency/reason alone (never silently pretends an
+    unavailable/failed gate ran)."""
+    requested_provider = chain[0].gate_type if chain else None
     skipped: list[dict[str, str]] = []
     for gate in chain:
         try:
             result = await gate.decide(request)
         except GateUnavailable as exc:
             logger.info("Gate %s unavailable for %s: %s", gate.gate_type, request.decision_point, exc)
-            skipped.append({"gate_type": gate.gate_type, "reason": str(exc)})
+            skipped.append({"gate_type": gate.gate_type, "reason": str(exc), "error_category": exc.error_category})
             continue
         if skipped:
+            fallback_reason = "; ".join(f"{entry['gate_type']}: {entry['reason']}" for entry in skipped)
+            execution_status = "_then_".join(f"{entry['gate_type']}_{entry['error_category']}" for entry in skipped)
+            execution_status = f"{execution_status}_fallback_{result.gate_type}"
             result = DecisionResult(
                 decision=result.decision,
                 gate_type=result.gate_type,
@@ -76,6 +83,26 @@ async def decide_with_fallback(request: DecisionRequest, chain: list[DecisionGat
                 reason=result.reason,
                 metadata={**result.metadata, "skipped_gates": skipped},
                 schema_version=result.schema_version,
+                requested_provider=requested_provider,
+                fallback_reason=fallback_reason,
+                execution_status=execution_status,
+            )
+        else:
+            result = DecisionResult(
+                decision=result.decision,
+                gate_type=result.gate_type,
+                latency_ms=result.latency_ms,
+                probability=result.probability,
+                confidence=result.confidence,
+                provider=result.provider,
+                model_name=result.model_name,
+                cost_usd=result.cost_usd,
+                reason=result.reason,
+                metadata=result.metadata,
+                schema_version=result.schema_version,
+                requested_provider=requested_provider,
+                fallback_reason=None,
+                execution_status=f"{result.gate_type}_executed",
             )
         return result
     raise AssertionError("RuleGate is always available - the chain must never be exhausted")

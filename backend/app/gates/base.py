@@ -58,13 +58,37 @@ class DecisionResult:
     reason: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     schema_version: str = SCHEMA_VERSION
+    # Populated by decide_with_fallback (never by an individual gate): the gate
+    # type the configured chain was actually asked for first, which may differ
+    # from `gate_type` above if earlier gates in the chain were unavailable/failed.
+    requested_provider: str | None = None
+    # Human-readable summary of why any earlier gate(s) in the chain were
+    # skipped, e.g. "jev: TYPESAFE_API_KEY is not configured". None when the
+    # requested provider answered directly with no fallback.
+    fallback_reason: str | None = None
+    # A clear, persisted execution status - e.g. "jev_executed",
+    # "jev_unavailable_fallback_llm", "jev_failed_fallback_rules" - so an
+    # observer never has to infer what happened from latency/reason alone.
+    execution_status: str = "executed"
 
 
 class GateUnavailable(RuntimeError):
     """Raised by a gate that cannot answer right now (no credentials, provider
     down, malformed response). Callers (the gate chain / decision-point
     functions) catch this and fall through to the next configured gate -
-    never silently pretend an unavailable gate ran."""
+    never silently pretend an unavailable gate ran.
+
+    error_category distinguishes two fallback reasons for observability:
+      - "unavailable": the gate was never reachable (no credentials, no SDK
+        installed) - expected/normal when a provider isn't configured.
+      - "failed": the gate was reachable but this call did not produce a
+        usable answer (auth failure, rate limit, timeout, network error,
+        malformed response, unknown decision label, server error).
+    """
+
+    def __init__(self, message: str, *, error_category: str = "unavailable") -> None:
+        super().__init__(message)
+        self.error_category = error_category
 
 
 class DecisionGate(ABC):
@@ -98,3 +122,23 @@ def apply_rule_floor(
         if _ROUTING_ORDER[gate_decision] < _ROUTING_ORDER["require_approval"]:
             effective_gate_decision = "require_approval"
     return max(rule_floor, effective_gate_decision, key=lambda value: _ROUTING_ORDER[value])
+
+
+def apply_confidence_floor(
+    decision: str,
+    *,
+    confidence: float | None,
+    confidence_threshold: float,
+    permissive_decision: str,
+    conservative_decision: str,
+) -> str:
+    """The same escalate-only safety contract as apply_rule_floor, generalized
+    to decision points without an ordered numeric scale (evidence_verification,
+    client_safe_brief). Only overrides the gate's single most permissive
+    outcome (`permissive_decision`) when confidence is below threshold - a
+    low-confidence gate must never let its most permissive answer through
+    un-escalated, but this never touches an already-conservative outcome the
+    gate chose on its own."""
+    if decision == permissive_decision and confidence is not None and confidence < confidence_threshold:
+        return conservative_decision
+    return decision

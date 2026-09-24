@@ -328,6 +328,16 @@ class GateDecision(Base):
     input_reference: Mapped[Optional[str]] = mapped_column(String(120))  # short hash/tag, never a raw prompt
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSON)
     schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="gate-decision-v1")
+    # The gate type the configured chain was asked for first (may differ from
+    # gate_type/provider above if it was unavailable/failed and the chain fell
+    # through - see app.gates.decide_with_fallback).
+    requested_provider: Mapped[Optional[str]] = mapped_column(String(20))
+    # Human-readable summary of why any earlier gate(s) were skipped, e.g.
+    # "jev: TYPESAFE_API_KEY is not configured". NULL when the requested
+    # provider answered directly with no fallback.
+    fallback_reason: Mapped[Optional[str]] = mapped_column(Text)
+    # e.g. "jev_executed", "jev_unavailable_fallback_llm", "jev_failed_fallback_rules".
+    execution_status: Mapped[str] = mapped_column(String(80), nullable=False, default="executed")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
 
     agent_run: Mapped[AgentRun] = relationship(back_populates="gate_decisions")

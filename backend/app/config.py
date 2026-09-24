@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     decision_gate_provider: str = "rules"  # "jev" | "llm" | "rules" - primary gate; falls back jev -> llm -> rules
     gate_confidence_threshold: float = 0.6
     typesafe_api_key: Optional[str] = None
-    jev_model: Optional[str] = None
+    jev_model: str = "jev-latest"  # matches typesafe-sdk's own TYPESAFE_DEFAULT_MODEL constant
     jev_timeout_seconds: float = 10.0
 
     # Hosted external MCP (Phase 3F). Comma-separated extra Host header values

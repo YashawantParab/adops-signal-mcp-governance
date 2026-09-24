@@ -1,12 +1,31 @@
 """JevGate: a DecisionGate backed by TypeSafe AI's Jev (System One) model.
 
-Early access. See docs/jev-integration-notes.md for exactly what was confirmed
-from public docs vs. inferred, and why. This module never imports `typesafe_sdk`
-at module load time - the dependency is not yet added to requirements.txt
-pending explicit approval (it talks to a paid, metered API), so importing it
-eagerly would break every other gate at import time. `available` reports False
-whenever the package isn't installed or TYPESAFE_API_KEY isn't set; `decide()`
-always raises GateUnavailable in that case - it never fabricates a Jev answer.
+Early access - TypeSafe's waitlist is currently full and no TYPESAFE_API_KEY is
+available in this environment, so this adapter has never made a live call. It is
+built against the real, confirmed `typesafe-sdk==0.7.1` contract (see
+docs/jev-integration-notes.md for exactly what was verified from the installed
+package's source vs. inferred vs. not publicly documented) and is ready to make
+real calls the moment a key is configured - no redesign required, only:
+    1. TYPESAFE_API_KEY set in the environment
+    2. DECISION_GATE_PROVIDER=jev
+
+This module never fabricates a Jev answer. Every failure path below - missing
+key, missing SDK, auth failure, permission denial, rate limit, timeout, network
+failure, server error, malformed/invalid response, an unknown decision label -
+raises GateUnavailable with an `error_category` of "unavailable" (Jev was never
+reachable) or "failed" (Jev was reachable but this call did not produce a usable
+answer), so the caller (app.gates.decide_with_fallback) can fall through to
+LLMGate/RuleGate and record *why*, never silently pretending Jev ran.
+
+Safety: JevGate only ever returns a candidate decision + confidence. It has no
+authority to execute actions, grant RBAC, approve its own output, bypass human
+approval, or write to the public demo - those invariants are enforced entirely
+outside this class (app.gates.base.apply_rule_floor and its evidence/brief
+equivalents in app.gates.decision_points, require_roles(), and the public-demo
+write-blocking tested in tests/test_public_demo_mode.py). Jev may only ever
+ESCALATE a decision point's restrictiveness relative to the deterministic floor,
+never weaken it - that logic lives outside this file by design, so a bug here
+can degrade availability but can never itself downgrade a safety decision.
 """
 from __future__ import annotations
 
@@ -44,25 +63,18 @@ class JevGate(DecisionGate):
 
     async def decide(self, request: DecisionRequest) -> DecisionResult:
         if not self._settings.typesafe_api_key:
-            raise GateUnavailable("TYPESAFE_API_KEY is not configured")
+            raise GateUnavailable("TYPESAFE_API_KEY is not configured", error_category="unavailable")
         try:
-            from typesafe_sdk import AsyncTypeSafeClient, Choice
+            import typesafe_sdk as sdk
         except ImportError as exc:
             raise GateUnavailable(
-                "typesafe-sdk is not installed (pending approval - see docs/jev-integration-notes.md)"
+                "typesafe-sdk is not installed (run: pip install -r requirements.txt)", error_category="unavailable"
             ) from exc
-
-        try:
-            import typesafe_sdk as _typesafe_sdk_module
-
-            error_types: tuple[type[Exception], ...] = (_typesafe_sdk_module.TypeSafeError,)
-        except Exception:  # defensive: never let an SDK import quirk crash the gate boundary
-            error_types = (Exception,)
 
         instructions = _INSTRUCTIONS.get(request.decision_point, "Choose the correct decision for the given state.")
         started = time.perf_counter()
         try:
-            async with AsyncTypeSafeClient(
+            async with sdk.AsyncTypeSafeClient(
                 api_key=self._settings.typesafe_api_key,
                 model=self._settings.jev_model,
                 timeout=self._settings.jev_timeout_seconds,
@@ -70,42 +82,62 @@ class JevGate(DecisionGate):
                 response = await client.system_one(
                     state=request.state,
                     questions={
-                        "decision": Choice(
+                        "decision": sdk.Choice(
                             instructions=instructions,
                             criteria={option: None for option in request.allowed_decisions},
                         )
                     },
                 )
-        except error_types as exc:
-            raise GateUnavailable(f"Jev request failed: {exc}") from exc
+        except sdk.TypeSafeAuthenticationError as exc:
+            raise GateUnavailable(f"Jev authentication failed - check TYPESAFE_API_KEY: {exc}", error_category="failed") from exc
+        except sdk.TypeSafePermissionDeniedError as exc:
+            raise GateUnavailable(f"Jev denied permission for this request: {exc}", error_category="failed") from exc
+        except sdk.TypeSafeRateLimitError as exc:
+            retry_after = getattr(exc, "retry_after_ms", None)
+            raise GateUnavailable(f"Jev rate limit exceeded (retry_after_ms={retry_after}): {exc}", error_category="failed") from exc
+        except sdk.TypeSafeAPITimeoutError as exc:
+            raise GateUnavailable(f"Jev request timed out: {exc}", error_category="failed") from exc
+        except sdk.TypeSafeAPIConnectionError as exc:
+            raise GateUnavailable(f"Jev network/connection failure: {exc}", error_category="failed") from exc
+        except sdk.TypeSafeInternalServerError as exc:
+            raise GateUnavailable(f"Jev server error: {exc}", error_category="failed") from exc
+        except sdk.TypeSafeAPIResponseValidationError as exc:
+            raise GateUnavailable(f"Jev returned a response that failed validation: {exc}", error_category="failed") from exc
+        except (sdk.TypeSafeBadRequestError, sdk.TypeSafeNotFoundError, sdk.TypeSafeUnprocessableEntityError) as exc:
+            raise GateUnavailable(f"Jev rejected the request: {exc}", error_category="failed") from exc
+        except sdk.TypeSafeError as exc:
+            raise GateUnavailable(f"Jev request failed: {exc}", error_category="failed") from exc
         except Exception as exc:  # any unexpected SDK/transport failure - never crash the caller
-            raise GateUnavailable(f"Unexpected Jev failure: {exc}") from exc
+            raise GateUnavailable(f"Unexpected Jev failure: {exc}", error_category="failed") from exc
 
         latency_ms = max(int((time.perf_counter() - started) * 1000), 0)
         try:
             answer = response.choices["decision"]
             decision = str(answer.choice)
         except (AttributeError, KeyError) as exc:
-            raise GateUnavailable(f"Malformed Jev response: {exc}") from exc
+            raise GateUnavailable(f"Malformed Jev response - no usable decision answer: {exc}", error_category="failed") from exc
 
         if decision not in request.allowed_decisions:
-            raise GateUnavailable(f"Jev returned an unlisted decision {decision!r}")
+            raise GateUnavailable(f"Jev returned an unlisted decision {decision!r}", error_category="failed")
 
         return DecisionResult(
             decision=decision,
             gate_type="jev",
             latency_ms=latency_ms,
-            # Read defensively: .confidence/.probabilities on ChoiceAnswer are
-            # sourced from the announcement blog's prose, not a verbatim-fetched
-            # type definition - see docs/jev-integration-notes.md.
+            # ChoiceAnswer.confidence/.probabilities are confirmed real fields on the
+            # installed SDK (see docs/jev-integration-notes.md) but are still read
+            # defensively: a live response that omits them must degrade to
+            # "confidence unknown", never crash the gate boundary.
             confidence=_safe_float(getattr(answer, "confidence", None)),
             probability=_safe_float(getattr(answer, "confidence", None)),
             provider="jev",
-            model_name=self._settings.jev_model or "jev",
-            cost_usd=None,  # never fabricated from the vendor's published per-token rate
+            model_name=self._settings.jev_model or getattr(response, "model", None) or "jev-latest",
+            cost_usd=None,  # SystemOneResponse.usage has no dollar field - never fabricated from a guessed rate
             metadata={
                 "probabilities": getattr(answer, "probabilities", None),
-                "request_id": getattr(response, "request_id", None),
+                "request_id": _safe_request_id(response),
+                "input_tokens": getattr(getattr(response, "usage", None), "input_tokens", None),
+                "output_tokens": getattr(getattr(response, "usage", None), "output_tokens", None),
             },
         )
 
@@ -114,4 +146,16 @@ def _safe_float(value: Any) -> float | None:
     try:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
+        return None
+
+
+def _safe_request_id(response: Any) -> str | None:
+    # SystemOneResponse.request_id is a *property* that raises TypeSafeError
+    # (not AttributeError) when the response has no request-ID header attached
+    # - confirmed directly against the installed SDK. getattr(..., default)
+    # only suppresses AttributeError, so it would NOT protect this access;
+    # observability metadata must never be allowed to crash a successful decision.
+    try:
+        return response.request_id
+    except Exception:
         return None

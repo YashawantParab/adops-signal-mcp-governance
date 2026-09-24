@@ -291,6 +291,9 @@ class GateDecisionRead(BaseModel):
     input_reference: Optional[str] = None
     metadata_json: Optional[dict[str, Any]] = None
     schema_version: str = "gate-decision-v1"
+    requested_provider: Optional[str] = None
+    fallback_reason: Optional[str] = None
+    execution_status: str = "executed"
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
