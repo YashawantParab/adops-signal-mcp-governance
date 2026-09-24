@@ -273,6 +273,29 @@ class MCPToolCallRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class GateDecisionRead(BaseModel):
+    id: int
+    agent_run_id: int
+    campaign_id: Optional[int] = None
+    decision_point: str
+    gate_type: str
+    provider: Optional[str] = None
+    model_name: Optional[str] = None
+    decision: str
+    probability: Optional[float] = None
+    confidence: Optional[float] = None
+    rule_floor: Optional[str] = None
+    final_decision: str
+    latency_ms: int
+    estimated_cost_usd: Optional[float] = None
+    input_reference: Optional[str] = None
+    metadata_json: Optional[dict[str, Any]] = None
+    schema_version: str = "gate-decision-v1"
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PolicyCheckRead(BaseModel):
     id: int
     agent_run_id: int
@@ -336,6 +359,8 @@ class AgentRunRead(BaseModel):
     steps_used: Optional[int] = None
     max_steps: Optional[int] = None
     fallback_reason: Optional[str] = None
+    client_safe_brief: Optional[str] = None
+    client_safe_brief_status: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -345,6 +370,7 @@ class AgentRunDetail(AgentRunRead):
     approval_requests: list[ApprovalRequestRead]
     policy_checks: list[PolicyCheckRead]
     blocked_actions: list[BlockedActionRead]
+    gate_decisions: list[GateDecisionRead] = Field(default_factory=list)
 
 
 class MCPApprovalDecisionRequest(BaseModel):
@@ -401,6 +427,9 @@ class MCPAgentRunResponse(BaseModel):
     max_steps: Optional[int] = None
     fallback_reason: Optional[str] = None
     tools_selected: list[str] = Field(default_factory=list)
+    client_safe_brief: Optional[str] = None
+    client_safe_brief_status: Optional[str] = None
+    gate_decisions: list[GateDecisionRead] = Field(default_factory=list)
 
 
 class MCPSummary(BaseModel):

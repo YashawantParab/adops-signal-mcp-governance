@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session, selectinload
 from app.agent.mcp_agent_runtime import AgentRunOutcome, AgentTerminated, run_governed_mcp_agent
 from app.agent.providers import LLMProvider, get_llm_provider
 from app.config import Settings, get_settings
+from app.gates import get_decision_gate_chain
+from app.gates.decision_points import client_safe_brief_check, evidence_verification, risk_routing
+from app.services.gate_decision_service import persist_gate_decision
 from app.models import (
     AgentRun,
     ApprovalRequest,
@@ -31,6 +34,7 @@ from app.schemas import (
     ApprovalRequestRead,
     BlockedActionRead,
     CampaignHealth,
+    GateDecisionRead,
     MCPAgentRunResponse,
     MCPSummary,
     MCPToolRead,
@@ -91,6 +95,18 @@ def _agent_run_to_read(run: AgentRun) -> AgentRunRead:
         approval_required=run.approval_required,
         created_at=run.created_at,
         completed_at=run.completed_at,
+        execution_mode=run.execution_mode,
+        llm_provider=run.llm_provider,
+        model_name=run.model_name,
+        input_tokens=run.input_tokens,
+        output_tokens=run.output_tokens,
+        total_tokens=run.total_tokens,
+        estimated_cost_usd=run.estimated_cost_usd,
+        steps_used=run.steps_used,
+        max_steps=run.max_steps,
+        fallback_reason=run.fallback_reason,
+        client_safe_brief=run.client_safe_brief,
+        client_safe_brief_status=run.client_safe_brief_status,
     )
 
 
@@ -102,6 +118,7 @@ def _agent_run_to_detail(run: AgentRun) -> AgentRunDetail:
         approval_requests=[_approval_to_read(item) for item in run.approval_requests],
         policy_checks=[PolicyCheckRead.model_validate(item) for item in run.policy_checks],
         blocked_actions=[BlockedActionRead.model_validate(item) for item in run.blocked_actions],
+        gate_decisions=[GateDecisionRead.model_validate(item) for item in run.gate_decisions],
     )
 
 
@@ -126,6 +143,7 @@ def get_agent_run_detail(db: Session, run_id: int) -> AgentRunDetail | None:
             selectinload(AgentRun.tool_calls),
             selectinload(AgentRun.policy_checks),
             selectinload(AgentRun.blocked_actions),
+            selectinload(AgentRun.gate_decisions),
             selectinload(AgentRun.approval_requests).selectinload(ApprovalRequest.campaign),
             selectinload(AgentRun.approval_requests).selectinload(ApprovalRequest.reviewer),
         )
@@ -137,6 +155,7 @@ def get_agent_run_detail(db: Session, run_id: int) -> AgentRunDetail | None:
     run.policy_checks.sort(key=lambda item: item.created_at)
     run.blocked_actions.sort(key=lambda item: item.created_at)
     run.approval_requests.sort(key=lambda item: item.created_at)
+    run.gate_decisions.sort(key=lambda item: item.created_at)
     return _agent_run_to_detail(run)
 
 
@@ -523,6 +542,37 @@ async def _run_llm_mcp_agent_orchestration(
         settings=settings,
     )
 
+    gate_chain = get_decision_gate_chain(settings)
+
+    # Evidence-verification gate: supplements (never replaces) the deterministic
+    # evidence-ID existence/scope check already enforced in mcp_agent_runtime.py.
+    # "unsupported" (zero keyword overlap under RuleGate, or an explicit
+    # unsupported call from LLM/JevGate) removes a cause outright. "uncertain"
+    # is persisted for audit but not removed - a coarse gate's uncertainty is
+    # not itself grounds to discard an already evidence-ID-verified cause.
+    verified_causes = []
+    for index, cause in enumerate(outcome.grounded_root_causes):
+        evidence_text = " ".join(
+            str(outcome.evidence_ledger[evidence_id].data) for evidence_id in cause.evidence_ids if evidence_id in outcome.evidence_ledger
+        )
+        cause_text = f"{cause.cause}. {cause.recommendation_description}"
+        verification = await evidence_verification(
+            run_id=run.id, campaign_id=campaign_id, cause_text=cause_text, evidence_text=evidence_text, chain=gate_chain,
+        )
+        persist_gate_decision(
+            db, agent_run_id=run.id, campaign_id=campaign_id, decision_point="evidence_verification",
+            result=verification, rule_floor=None, final_decision=verification.decision,
+            input_state={"cause_index": index, "cause": cause.cause, "evidence_ids": cause.evidence_ids},
+        )
+        if verification.decision != "unsupported":
+            verified_causes.append(cause)
+
+    if not verified_causes:
+        raise AgentTerminated(
+            "no_gate_supported_causes",
+            "Every grounded root cause was classified unsupported by the evidence-verification gate",
+        )
+
     # Rule floor: the SAME deterministic scoring the fallback path uses,
     # computed independently of which MCP tools the agent chose to call -
     # this is the "existing rule risk floor" step in the target architecture
@@ -534,14 +584,57 @@ async def _run_llm_mcp_agent_orchestration(
     policy_output, _ = _timed(lambda: _search_policy_context(f"{user_query} {health.main_suspected_issue}".strip()))
 
     risk_score, risk_level = _score_risk(health, vast_output, brand_output)
-    top_cause = outcome.grounded_root_causes[0]
+    rule_floor = {"LOW": "auto_recommend", "MEDIUM": "auto_recommend", "HIGH": "require_approval", "CRITICAL": "block"}[risk_level]
+    top_cause = verified_causes[0]
     proposed_action = f"{top_cause.recommendation_title}: {top_cause.recommendation_description}"
     rationale = f"{outcome.diagnosis.diagnosis} {_build_rationale(health, vast_output, brand_output, policy_output)}"
 
-    approval_required = risk_level in ("HIGH", "CRITICAL")
-    blocked = risk_level == "CRITICAL"
+    # Risk-routing gate: may only escalate the deterministic rule_floor, never
+    # downgrade it (app.gates.base.apply_rule_floor enforces this unconditionally).
+    routing = await risk_routing(
+        run_id=run.id, campaign_id=campaign_id, rule_floor=rule_floor, proposed_action=proposed_action,
+        evidence_summary={
+            "risk_level": risk_level, "pacing_percentage": health.pacing_percentage,
+            "vast_error_count": vast_output["vast_error_count"], "rejected_count": vast_output["rejected_count"],
+            "brand_safety_finding_count": brand_output["finding_count"],
+        },
+        chain=gate_chain, settings=settings,
+    )
+    persist_gate_decision(
+        db, agent_run_id=run.id, campaign_id=campaign_id, decision_point="risk_routing",
+        result=routing.gate_result, rule_floor=rule_floor, final_decision=routing.final_routing,
+        input_state={"proposed_action": proposed_action, "risk_level": risk_level},
+    )
 
-    if risk_level == "HIGH":
+    approval_required = routing.final_routing in ("require_approval", "block")
+    blocked = routing.final_routing == "block"
+
+    # Client-safe-brief gate: an unsafe/needs-review brief is withheld, never
+    # auto-released or silently rewritten (flag -> review -> audit).
+    brief_check = await client_safe_brief_check(
+        run_id=run.id, campaign_id=campaign_id, brief_text=outcome.diagnosis.client_safe_brief, chain=gate_chain,
+    )
+    persist_gate_decision(
+        db, agent_run_id=run.id, campaign_id=campaign_id, decision_point="client_safe_brief",
+        result=brief_check, rule_floor=None, final_decision=brief_check.decision,
+        input_state={"brief_length": len(outcome.diagnosis.client_safe_brief)},
+    )
+    run.client_safe_brief_status = brief_check.decision
+    run.client_safe_brief = outcome.diagnosis.client_safe_brief if brief_check.decision == "safe" else None
+
+    # Approval/block rows follow the gate-adjusted final routing, not the raw
+    # rule_floor directly - a gate escalation must actually route to a human,
+    # not just be recorded and ignored.
+    if blocked:
+        db.add(
+            BlockedAction(
+                agent_run_id=run.id,
+                tool_name="execute_proposed_action",
+                reason=rationale,
+                risk_level=risk_level,
+            )
+        )
+    elif approval_required:
         db.add(
             ApprovalRequest(
                 agent_run_id=run.id,
@@ -551,15 +644,6 @@ async def _run_llm_mcp_agent_orchestration(
                 risk_level=risk_level,
                 rationale=rationale,
                 status="pending",
-            )
-        )
-    elif risk_level == "CRITICAL":
-        db.add(
-            BlockedAction(
-                agent_run_id=run.id,
-                tool_name="execute_proposed_action",
-                reason=rationale,
-                risk_level=risk_level,
             )
         )
 
@@ -632,6 +716,9 @@ async def _run_llm_mcp_agent_orchestration(
         max_steps=settings.max_agent_steps,
         fallback_reason=None,
         tools_selected=outcome.tools_selected,
+        client_safe_brief=run.client_safe_brief,
+        client_safe_brief_status=run.client_safe_brief_status,
+        gate_decisions=[GateDecisionRead.model_validate(item) for item in run.gate_decisions],
     )
 
 

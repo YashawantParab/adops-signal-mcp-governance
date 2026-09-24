@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     max_agent_tokens: int = 20000
     agent_timeout_seconds: float = 45.0
     max_run_cost_usd: Optional[float] = None
+
+    # Decision gates (Phase 2) -------------------------------------------------
+    decision_gate_provider: str = "rules"  # "jev" | "llm" | "rules" - primary gate; falls back jev -> llm -> rules
+    gate_confidence_threshold: float = 0.6
+    typesafe_api_key: Optional[str] = None
+    jev_model: Optional[str] = None
+    jev_timeout_seconds: float = 10.0
+
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 480

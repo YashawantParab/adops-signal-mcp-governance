@@ -8,6 +8,7 @@ from anthropic import Anthropic
 
 from app.agent.providers.base import (
     AssistantToolCallTurn,
+    ClassificationResult,
     LLMProvider,
     ProviderError,
     StepResult,
@@ -124,6 +125,49 @@ class AnthropicProvider(LLMProvider):
             raw_model_name=response.model,
         )
 
+    def classify(
+        self, *, system_prompt: str, payload: dict[str, Any], schema: dict[str, Any]
+    ) -> ClassificationResult:
+        if not self.available:
+            raise ProviderError("Anthropic provider is not configured (missing ANTHROPIC_API_KEY)")
+        try:
+            response = self._client().messages.create(
+                model=self._settings.anthropic_model,
+                max_tokens=_MAX_OUTPUT_TOKENS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": [{"type": "text", "text": _safe_json(payload)}]}],
+                tools=[{"name": "answer", "description": "Report the classification decision.", "input_schema": schema}],
+                tool_choice={"type": "tool", "name": "answer"},
+            )
+        except anthropic.APIError as exc:
+            raise ProviderError(f"Anthropic classification request failed: {exc}") from exc
+
+        tool_use = next((block for block in response.content if block.type == "tool_use"), None)
+        if tool_use is None:
+            raise ProviderError("Anthropic classification response did not include a tool_use block")
+        parsed = dict(tool_use.input or {})
+        if "decision" not in parsed:
+            raise ProviderError("Anthropic classification response is missing 'decision'")
+
+        usage = response.usage
+        return ClassificationResult(
+            decision=str(parsed["decision"]),
+            confidence=_coerce_confidence(parsed.get("confidence")),
+            raw_model_name=response.model,
+            usage=StepUsage(
+                input_tokens=usage.input_tokens if usage else None,
+                output_tokens=usage.output_tokens if usage else None,
+                total_tokens=(usage.input_tokens + usage.output_tokens) if usage else None,
+            ),
+        )
+
 
 def _safe_json(content: dict[str, Any]) -> str:
     return json.dumps(content, default=str)
+
+
+def _coerce_confidence(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None

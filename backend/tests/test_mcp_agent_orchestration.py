@@ -40,16 +40,19 @@ VALID_DIAGNOSIS = {
     ],
     "confidence_score": 0.8,
     "human_approval_required": True,
+    "client_safe_brief": "Delivery is currently limited by a creative validation issue. We are correcting it and will resume scaling once resolved.",
 }
 
 
 class ScriptedProvider(LLMProvider):
     provider_name = "openai"
 
-    def __init__(self, steps: list[ToolCall], *, available: bool = True) -> None:
+    def __init__(self, steps: list[ToolCall], *, available: bool = True, classify_decision: str | None = None, classify_confidence: float | None = 0.9) -> None:
         self._steps = list(steps)
         self._available = available
         self._calls = 0
+        self._classify_decision = classify_decision
+        self._classify_confidence = classify_confidence
 
     @property
     def model(self) -> str:
@@ -68,6 +71,16 @@ class ScriptedProvider(LLMProvider):
             tool_call=call,
             usage=StepUsage(input_tokens=10, output_tokens=5, total_tokens=15),
             raw_model_name="scripted-model",
+        )
+
+    def classify(self, *, system_prompt, payload, schema):
+        from app.agent.providers.base import ClassificationResult
+
+        if self._classify_decision is None:
+            raise NotImplementedError("this test did not configure classify_decision - see test_gates.py")
+        return ClassificationResult(
+            decision=self._classify_decision, confidence=self._classify_confidence,
+            raw_model_name="scripted-model", usage=StepUsage(input_tokens=5, output_tokens=2, total_tokens=7),
         )
 
 
@@ -127,6 +140,41 @@ def test_llm_mcp_agent_path_persists_real_observability_fields(tmp_path, monkeyp
     assert run.llm_provider == "openai"
     assert run.fallback_reason is None
 
+    # Regression: the *read* path (GET /api/mcp/runs, /api/mcp/runs/{id}) must
+    # reflect these fields too, not just the response returned at submit time -
+    # a reviewer reloading the run detail page must see the real execution_mode.
+    listed = next(item for item in mcp_governance_service.list_agent_runs(db) if item.id == run.id)
+    assert listed.execution_mode == "llm_mcp_agent"
+    assert listed.llm_provider == "openai"
+    assert listed.model_name == "scripted-model"
+    assert listed.steps_used == 2
+
+    detail = mcp_governance_service.get_agent_run_detail(db, run.id)
+    assert detail.execution_mode == "llm_mcp_agent"
+    assert detail.total_tokens == 30
+    assert detail.fallback_reason is None
+
+    # Phase 2: the three primary gate points ran and persisted real decisions.
+    # decision_gate_provider defaults to "rules" (no key needed), so RuleGate
+    # both answered them and - for risk_routing specifically - is a pure
+    # pass-through of the deterministic rule floor (by construction), meaning
+    # approval/blocked semantics are unchanged from before gates existed.
+    points = {item.decision_point for item in result.gate_decisions}
+    assert points == {"evidence_verification", "risk_routing", "client_safe_brief"}
+    assert all(item.gate_type == "rules" for item in result.gate_decisions)
+
+    risk_routing_decision = next(item for item in result.gate_decisions if item.decision_point == "risk_routing")
+    assert risk_routing_decision.rule_floor == risk_routing_decision.final_decision  # RuleGate is a no-op on the floor
+
+    evidence_decision = next(item for item in result.gate_decisions if item.decision_point == "evidence_verification")
+    assert evidence_decision.decision in ("supported", "uncertain")  # the cited evidence genuinely backs the cause
+
+    assert result.client_safe_brief_status == "safe"
+    assert result.client_safe_brief == VALID_DIAGNOSIS["client_safe_brief"]
+
+    detail_points = {item.decision_point for item in detail.gate_decisions}
+    assert detail_points == points  # read path (GET .../runs/{id}) reflects the same gate decisions
+
 
 def test_missing_provider_key_falls_back_to_deterministic(tmp_path, monkeypatch):
     db, database_url = seeded_session(tmp_path)
@@ -173,3 +221,52 @@ def test_mcp_unavailable_falls_back_to_deterministic(tmp_path, monkeypatch):
 
     assert result.execution_mode == "deterministic_fallback"
     assert result.fallback_reason == "mcp_unavailable"
+
+
+def test_risk_routing_gate_escalation_actually_blocks_a_low_risk_campaign(tmp_path, monkeypatch):
+    """Proves gate escalation isn't just a value computed and ignored: with
+    DECISION_GATE_PROVIDER=llm and a gate that says "block" for a campaign
+    whose deterministic rule floor is only auto_recommend, the run must
+    actually end up blocked=True with a BlockedAction row - not merely record
+    the gate's opinion."""
+    if not DEFAULT_MCP_SERVER_DIR.exists():
+        import pytest
+
+        pytest.skip("mcp-server/ is not present in this checkout")
+
+    db, database_url = seeded_session(tmp_path)
+    settings = _settings(database_url, decision_gate_provider="llm")
+    provider = ScriptedProvider(
+        steps=[
+            ToolCall(id="call_1", name="get_vast_validation_summary", arguments={"campaign_id": 1047}),
+            ToolCall(id="call_2", name=FINISH_TOOL_NAME, arguments=VALID_DIAGNOSIS),
+        ],
+        classify_decision="block",
+        classify_confidence=0.9,
+    )
+    import app.gates as gates_module
+
+    monkeypatch.setattr(mcp_governance_service, "get_settings", lambda: settings)
+    monkeypatch.setattr(mcp_governance_service, "get_llm_provider", lambda settings: provider)
+    # get_decision_gate_chain (app.gates) resolves get_llm_provider from its OWN
+    # module namespace, independent of mcp_governance_service's imported name -
+    # both must be patched for the scripted provider to answer gate decisions too.
+    monkeypatch.setattr(gates_module, "get_llm_provider", lambda settings: provider)
+
+    result = mcp_governance_service.run_agent_orchestration(db, "Is LuxeHome healthy and pacing on plan?", "1047")
+
+    assert result.execution_mode == "llm_mcp_agent"
+    assert result.risk_level == "LOW"  # the deterministic rule engine's own read is unchanged
+    assert result.blocked is True  # but the gate escalated final routing to block
+    assert result.approval_required is True
+
+    routing_decision = next(item for item in result.gate_decisions if item.decision_point == "risk_routing")
+    assert routing_decision.rule_floor == "auto_recommend"
+    assert routing_decision.decision == "block"
+    assert routing_decision.final_decision == "block"
+    assert routing_decision.gate_type == "llm"
+
+    run = db.get(AgentRun, int(result.agent_run_id))
+    from app.models import BlockedAction
+
+    assert db.query(BlockedAction).filter_by(agent_run_id=run.id).count() == 1

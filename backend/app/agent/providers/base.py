@@ -78,6 +78,22 @@ class StepResult:
     raw_model_name: str
 
 
+@dataclass(frozen=True)
+class ClassificationResult:
+    """A single structured classification answer (used by app.gates.llm_gate).
+
+    `schema` passed to `LLMProvider.classify` must describe an object with a
+    `decision` property (enum of allowed values) and should include a
+    `confidence` property (0-1); this result surfaces whatever the model
+    returned for those two fields, defensively (confidence may be None if the
+    model omitted it)."""
+
+    decision: str
+    confidence: float | None
+    raw_model_name: str
+    usage: StepUsage
+
+
 class ProviderError(RuntimeError):
     """Raised for any provider failure (auth, timeout, malformed response, ...).
 
@@ -120,5 +136,17 @@ class LLMProvider(ABC):
         Must raise ProviderError on any failure - auth, timeout, rate limit,
         malformed/unparseable response, or a response that names a tool that
         was not offered. Never raises the underlying SDK's exception type.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def classify(
+        self, *, system_prompt: str, payload: dict[str, Any], schema: dict[str, Any]
+    ) -> ClassificationResult:
+        """A single structured classification call, used by app.gates.llm_gate.
+
+        `schema` is a JSON schema for an object with (at least) `decision` and
+        `confidence` properties. Must raise ProviderError on any failure -
+        same contract as decide_next_step.
         """
         raise NotImplementedError

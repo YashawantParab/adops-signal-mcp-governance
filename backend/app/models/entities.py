@@ -224,6 +224,12 @@ class AgentRun(Base):
     max_steps: Mapped[Optional[int]] = mapped_column(Integer)
     fallback_reason: Mapped[Optional[str]] = mapped_column(String(80))
 
+    # Client-safe brief (Phase 2): populated only for execution_mode="llm_mcp_agent"
+    # runs, where the finish call also produces a client-facing brief that the
+    # client_safe_brief gate then classifies before it is considered releasable.
+    client_safe_brief: Mapped[Optional[str]] = mapped_column(Text)
+    client_safe_brief_status: Mapped[Optional[str]] = mapped_column(String(40))  # safe | needs_review | block
+
     campaign: Mapped[Campaign] = relationship()
     tool_calls: Mapped[list["MCPToolCall"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
     approval_requests: Mapped[list["ApprovalRequest"]] = relationship(
@@ -231,6 +237,9 @@ class AgentRun(Base):
     )
     policy_checks: Mapped[list["PolicyCheck"]] = relationship(back_populates="agent_run", cascade="all, delete-orphan")
     blocked_actions: Mapped[list["BlockedAction"]] = relationship(
+        back_populates="agent_run", cascade="all, delete-orphan"
+    )
+    gate_decisions: Mapped[list["GateDecision"]] = relationship(
         back_populates="agent_run", cascade="all, delete-orphan"
     )
 
@@ -296,6 +305,32 @@ class BlockedAction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
 
     agent_run: Mapped[AgentRun] = relationship(back_populates="blocked_actions")
+
+
+class GateDecision(Base):
+    __tablename__ = "gate_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), nullable=False, index=True)
+    campaign_id: Mapped[Optional[int]] = mapped_column(ForeignKey("campaigns.id"))
+    decision_point: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    gate_type: Mapped[str] = mapped_column(String(20), nullable=False)  # jev | llm | rules
+    provider: Mapped[Optional[str]] = mapped_column(String(40))
+    model_name: Mapped[Optional[str]] = mapped_column(String(120))
+    decision: Mapped[str] = mapped_column(String(80), nullable=False)
+    probability: Mapped[Optional[float]] = mapped_column(Float)
+    confidence: Mapped[Optional[float]] = mapped_column(Float)
+    rule_floor: Mapped[Optional[str]] = mapped_column(String(40))
+    final_decision: Mapped[str] = mapped_column(String(80), nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    estimated_cost_usd: Mapped[Optional[float]] = mapped_column(Float)
+    input_reference: Mapped[Optional[str]] = mapped_column(String(120))  # short hash/tag, never a raw prompt
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSON)
+    schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="gate-decision-v1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
+
+    agent_run: Mapped[AgentRun] = relationship(back_populates="gate_decisions")
+    campaign: Mapped[Optional[Campaign]] = relationship()
 
 
 class User(Base):

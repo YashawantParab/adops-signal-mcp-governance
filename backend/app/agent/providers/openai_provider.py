@@ -7,6 +7,7 @@ from openai import OpenAI, OpenAIError
 
 from app.agent.providers.base import (
     AssistantToolCallTurn,
+    ClassificationResult,
     LLMProvider,
     ProviderError,
     StepResult,
@@ -130,3 +131,52 @@ class OpenAIProvider(LLMProvider):
             ),
             raw_model_name=response.model,
         )
+
+    def classify(
+        self, *, system_prompt: str, payload: dict[str, Any], schema: dict[str, Any]
+    ) -> ClassificationResult:
+        if not self.available:
+            raise ProviderError("OpenAI provider is not configured (missing OPENAI_API_KEY)")
+        try:
+            response = self._client().chat.completions.create(
+                model=self._settings.openai_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(payload, default=str)},
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {"name": "gate_decision", "strict": True, "schema": schema},
+                },
+            )
+        except OpenAIError as exc:
+            raise ProviderError(f"OpenAI classification request failed: {exc}") from exc
+
+        content = response.choices[0].message.content if response.choices else None
+        if not content:
+            raise ProviderError("OpenAI classification response was empty")
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ProviderError(f"OpenAI classification response was not valid JSON: {exc}") from exc
+        if "decision" not in parsed:
+            raise ProviderError("OpenAI classification response is missing 'decision'")
+
+        usage = response.usage
+        return ClassificationResult(
+            decision=str(parsed["decision"]),
+            confidence=_coerce_confidence(parsed.get("confidence")),
+            raw_model_name=response.model,
+            usage=StepUsage(
+                input_tokens=usage.prompt_tokens if usage else None,
+                output_tokens=usage.completion_tokens if usage else None,
+                total_tokens=usage.total_tokens if usage else None,
+            ),
+        )
+
+
+def _coerce_confidence(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None

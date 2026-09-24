@@ -13,6 +13,7 @@ from app.models import (
     ApprovalRequest,
     BlockedAction,
     Campaign,
+    GateDecision,
     MCPToolCall,
     PolicyCheck,
     Recommendation,
@@ -125,3 +126,4 @@ def test_demo_viewer_cannot_create_any_mcp_governance_writes(tmp_path):
     assert db.execute(select(ApprovalRequest)).first() is None
     assert db.execute(select(PolicyCheck)).first() is None
     assert db.execute(select(BlockedAction)).first() is None
+    assert db.execute(select(GateDecision)).first() is None  # Phase 2: gate decisions too
