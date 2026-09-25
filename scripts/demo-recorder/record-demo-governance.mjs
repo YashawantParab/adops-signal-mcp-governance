@@ -53,6 +53,15 @@ function pause(page, ms) {
   return page.waitForTimeout(ms);
 }
 
+async function expectPoll(getValue, predicate, timeoutMs, intervalMs = 300) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (predicate(await getValue())) return;
+    if (Date.now() > deadline) throw new Error(`expectPoll: condition not met within ${timeoutMs}ms`);
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 async function main() {
   const videoDir = fs.mkdtempSync(path.join(os.tmpdir(), "adops-governance-demo-"));
   const browser = await chromium.launch({ headless: HEADLESS });
@@ -70,6 +79,16 @@ async function main() {
       await page.getByLabel("Password").fill(PASSWORD);
       await pause(page, 500);
       await loginButton.click();
+      // The login button click triggers an async POST /api/auth/login and a
+      // client-side auth-state update before the app renders as logged in -
+      // navigating away immediately (the next page.goto below) raced ahead of
+      // that and landed on an unauthenticated page. The button's own
+      // accessible name flips to "Signing in..." the instant it's clicked
+      // (see LoginScreen.tsx), so waiting for the "Enter workspace"-named
+      // element to become hidden resolves immediately and does NOT wait for
+      // the login to actually finish - wait for a real post-login-only
+      // element instead.
+      await page.getByRole("heading", { name: "Delivery Operations" }).waitFor({ timeout: 15000 });
     }
 
     console.log("Opening the MCP Agent Console");
@@ -83,7 +102,11 @@ async function main() {
     );
     await pause(page, 600);
     await page.getByRole("button", { name: /Run Governance Analysis/ }).click();
-    await page.getByText(/Execution/).first().waitFor({ timeout: 45000 });
+    // Backend AGENT_TIMEOUT_SECONDS defaults to 45s - that is the agent
+    // run's own budget, not counting the HTTP round trip, DB writes, and
+    // render on top of it, so the wait here must exceed 45s with real
+    // margin, not match it exactly.
+    await page.getByText(/Execution/).first().waitFor({ timeout: 60000 });
     await pause(page, 2500);
 
     console.log("Showing the execution mode and any Decision Gates result");
@@ -107,6 +130,23 @@ async function main() {
     await pause(page, 1200);
 
     console.log("Proposing a frequency-cap adjustment");
+    // The Campaign <select> has no blank/placeholder option, so its React
+    // state starts at "" (no campaign selected) until a real selection event
+    // fires - "Propose Action" stays disabled (campaignId is falsy) until
+    // then, so explicitly choose one first rather than clicking straight away.
+    // <option>s inside a closed <select> are never reported "visible" by
+    // Playwright's actionability model, so waiting on one directly never
+    // resolves - poll the option count instead, then let selectOption's own
+    // built-in retry/actionability handling do the actual selection.
+    // getByLabel("Campaign") does not reliably resolve to this <select> (its
+    // accessible name computation did not match the wrapping <label>'s text
+    // in practice) - address it structurally instead: the first <select>
+    // inside the propose form, which is always Campaign (Action is the
+    // second select in the same form).
+    const campaignSelect = page.locator("form").filter({ hasText: "Propose Action" }).locator("select").first();
+    await expectPoll(() => campaignSelect.locator("option").count(), (count) => count > 0, 15000);
+    await campaignSelect.selectOption({ index: 0 });
+    await pause(page, 500);
     await page.getByRole("button", { name: "Propose Action" }).click();
     await pause(page, 1500);
 
