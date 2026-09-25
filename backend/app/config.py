@@ -74,6 +74,16 @@ class Settings(BaseSettings):
             return value.replace("postgresql://", "postgresql+psycopg://", 1)
         return value
 
+    @field_validator("max_run_cost_usd", mode="before")
+    @classmethod
+    def blank_max_run_cost_usd_is_unset(cls, value: object) -> object:
+        # .env.example documents MAX_RUN_COST_USD= (blank) as "unset" - pydantic
+        # does not coerce an empty string to None for Optional[float] on its own,
+        # so a literal blank env value previously crashed Settings() at startup.
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
     @property
     def llm_available(self) -> bool:
         return bool(self.llm_enabled and self.openai_api_key)

@@ -11,6 +11,18 @@ Hard rules enforced in this module, not just documented:
   - a materially changed campaign state since approval invalidates the
     approval (state_version mismatch) rather than silently executing against
     now-stale assumptions
+
+Every public function here ends its successful/terminal paths with
+`db.commit()` - get_db() never commits on its own (only closes the session),
+so without this every write here silently vanished the moment the request
+ended (a real bug found and fixed during live end-to-end validation: every
+/api/actions/* write endpoint returned a plausible 200, but nothing survived
+past that single request). SessionLocal is also configured with
+expire_on_commit=False (for cheap post-commit response serialization
+elsewhere in the app), so a `db.commit()` here does NOT invalidate an
+already-loaded object's relationship collections from earlier in the same
+session/request - `db.expire_all()` immediately after each commit closes
+that gap so the caller's next read is guaranteed fresh.
 """
 from __future__ import annotations
 
@@ -85,7 +97,8 @@ def propose_action(
         proposed_by=proposed_by,
     )
     db.add(action)
-    db.flush()
+    db.commit()
+    db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
 
     if risk_class == "CRITICAL":
         return action  # CRITICAL never reaches an approval queue - matches BlockedAction semantics elsewhere
@@ -106,7 +119,8 @@ def propose_action(
     db.flush()
     action.approval_request_id = approval.id
     db.add(action)
-    db.flush()
+    db.commit()
+    db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
     return action
 
 
@@ -149,7 +163,8 @@ def approve_action(db: Session, proposed_action_id: int, *, reviewer: User, rati
 
     action.status = "approved"
     db.add(action)
-    db.flush()
+    db.commit()
+    db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
     return action
 
 
@@ -177,7 +192,8 @@ def execute_action(db: Session, proposed_action_id: int, *, executor: User) -> A
     if action.state_version and _hash_state(current_state.fields) != action.state_version:
         action.status = "failed"
         db.add(action)
-        db.flush()
+        db.commit()
+        db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
         raise ActionError(
             "STALE_APPROVAL",
             "Campaign state changed materially since this action was approved - re-propose and re-approve before executing",
@@ -200,7 +216,8 @@ def execute_action(db: Session, proposed_action_id: int, *, executor: User) -> A
     except Exception as exc:  # the mock write itself should never fail, but never silently swallow if it does
         action.status = "failed"
         db.add(action)
-        db.flush()
+        db.commit()
+        db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
         raise ActionError("EXECUTION_FAILED", str(exc)) from exc
 
     _verify_execution(db, execution, expected=target_state)
@@ -221,7 +238,8 @@ def _verify_execution(db: Session, execution: ActionExecution, *, expected: mock
     if matched:
         execution.proposed_action.status = "verified"
         db.add(execution.proposed_action)
-    db.flush()
+    db.commit()
+    db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
     return verification
 
 
@@ -253,5 +271,6 @@ def rollback_action(db: Session, action_execution_id: int, *, actor: User) -> Ac
     db.add(rollback)
     proposed_action.status = "rolled_back"
     db.add(proposed_action)
-    db.flush()
+    db.commit()
+    db.expire_all()  # see module docstring: expire_on_commit=False needs an explicit expire after commit
     return rollback

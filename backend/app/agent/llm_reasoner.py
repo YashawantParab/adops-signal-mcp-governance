@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from openai import OpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import get_settings
 
@@ -13,7 +13,17 @@ PROMPT_VERSION = "adops-diagnosis-v4"
 
 
 class GroundedCause(BaseModel):
-    cause: str = Field(min_length=3, max_length=120)
+    # extra="forbid" is required so .model_json_schema() emits
+    # additionalProperties: false on this object - OpenAI's strict
+    # response_format (json_schema, strict=True, used below) rejects any
+    # nested object schema that omits it with a 400 invalid_request_error.
+    model_config = ConfigDict(extra="forbid")
+
+    # See the identical fix/rationale on app.agent.mcp_agent_runtime.GovernedCause
+    # - OpenAI's strict response_format mode does not enforce string maxLength
+    # at generation time, so this field was silently rejecting well-formed real
+    # diagnoses whose natural phrasing exceeded 120 characters.
+    cause: str = Field(min_length=3, max_length=200)
     impact: str = Field(pattern="^(High|Medium|Low)$")
     evidence_ids: list[str] = Field(min_length=1, max_length=4)
     recommendation_title: str = Field(min_length=3, max_length=160)
@@ -23,6 +33,8 @@ class GroundedCause(BaseModel):
 
 
 class GroundedDiagnosis(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     diagnosis: str = Field(min_length=20, max_length=1200)
     root_causes: list[GroundedCause] = Field(min_length=1, max_length=4)
     confidence_score: float = Field(ge=0, le=1)
@@ -147,7 +159,9 @@ class LLMReasoner:
                         "or raw validation traces. State the issue, its delivery effect, and the next step. "
                         "Do not claim that a fix has already been applied. Do not state or imply certainty "
                         "beyond what the evidence supports. Do not attribute fault to a specific publisher, "
-                        "advertiser, or partner unless the evidence directly supports it."
+                        "advertiser, or partner unless the evidence directly supports it. Refer to the "
+                        "campaign by its exact given campaign_name at least once - never refer to it only "
+                        "by a numeric ID or database key, which is itself an internal identifier."
                     ),
                 },
                 {

@@ -209,3 +209,27 @@ def test_pause_and_resume_campaign_round_trip(tmp_path):
     resume = approve_action(db, resume.id, reviewer=reviewer(db), rationale="resuming")
     execute_action(db, resume.id, executor=reviewer(db))
     assert db.get(Campaign, 1047).status == "active"
+
+
+def test_list_actions_endpoint_serializes_full_lifecycle(tmp_path):
+    """GET /api/actions (app.api.actions.list_actions) - regression test for a
+    real bug found during live E2E validation: its selectinload() options
+    passed "verifications"/"rollbacks" as raw strings instead of class-bound
+    ActionExecution attributes, which SQLAlchemy 2.0 rejects with
+    ArgumentError, breaking this endpoint (and the Synthetic Action Console
+    that calls it) with a 500 on every request. The service-level tests above
+    never caught this because they call propose_action/approve_action/etc.
+    directly and never exercise this API handler's own query."""
+    from app.api.actions import list_actions
+
+    db = seeded_session(tmp_path)
+    action = propose_action(db, campaign_id=1047, action_type="adjust_frequency_cap", requested_params={"new_frequency_cap": 5})
+    action = approve_action(db, action.id, reviewer=reviewer(db), rationale="approved for list-endpoint coverage")
+    execution = execute_action(db, action.id, executor=reviewer(db))
+    rollback_action(db, execution.id, actor=reviewer(db))
+
+    results = list_actions(db=db, _=reviewer(db))
+    listed = next(item for item in results if item.id == action.id)
+    assert listed.status == "rolled_back"
+    assert listed.executions[0].verifications[0].verification_status == "verified"
+    assert listed.executions[0].rollbacks[0].verification_status == "verified"

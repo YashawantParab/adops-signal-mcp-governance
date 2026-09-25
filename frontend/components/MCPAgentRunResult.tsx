@@ -112,7 +112,13 @@ export function MCPAgentRunResult({
   detail: MCPAgentRunDetail | null;
   toolDescriptions: Record<string, MCPToolDescriptor>;
 }) {
-  const health = toolOutput<CampaignHealthOutput>(detail, "get_campaign_health");
+  // get_campaign_health's real MCP output is { campaign, health: {...}, metadata }
+  // (see mcp-server/adops_signal_mcp/tools.py::get_campaign_health) - CampaignHealthOutput
+  // describes the nested `health` object, not the wrapper, so it must be unwrapped here.
+  // This was never caught before because a genuine llm_mcp_agent run - the only mode that
+  // renders this section - had no OpenAI key to actually exercise until this session, and
+  // going straight to `.risk_level` on the wrapper crashed the page (undefined.replace()).
+  const health = toolOutput<{ health: CampaignHealthOutput }>(detail, "get_campaign_health")?.health ?? null;
   const pacing = toolOutput<PacingOutput>(detail, "get_campaign_pacing");
   const vast = toolOutput<VastOutput>(detail, "get_vast_validation_summary");
   const brand = toolOutput<BrandSafetyOutput>(detail, "get_brand_safety_findings");

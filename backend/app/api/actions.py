@@ -70,8 +70,8 @@ def list_actions(
             .options(
                 selectinload(ProposedAction.campaign),
                 selectinload(ProposedAction.approval_request),
-                selectinload(ProposedAction.executions).selectinload("verifications"),
-                selectinload(ProposedAction.executions).selectinload("rollbacks"),
+                selectinload(ProposedAction.executions).selectinload(ActionExecution.verifications),
+                selectinload(ProposedAction.executions).selectinload(ActionExecution.rollbacks),
             )
             .order_by(ProposedAction.created_at.desc(), ProposedAction.id.desc())
             .limit(100)

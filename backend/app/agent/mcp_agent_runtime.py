@@ -45,7 +45,14 @@ Impact = Literal["High", "Medium", "Low"]
 
 
 class GovernedCause(BaseModel):
-    cause: str = Field(min_length=3, max_length=120)
+    # max_length was 120 - real gpt-5.4-mini output (via plain function-calling,
+    # not schema-constrained at generation time) routinely produces a natural,
+    # specific `cause` sentence of 130-160+ characters, which silently failed
+    # this Pydantic validation and discarded a perfectly good live diagnosis in
+    # roughly half of real runs observed in this session's live testing -
+    # falling back to deterministic_fallback and wasting the real API spend
+    # already made. 200 gives real observed phrasing comfortable headroom.
+    cause: str = Field(min_length=3, max_length=200)
     impact: Impact
     evidence_ids: list[str] = Field(min_length=1, max_length=4)
     recommendation_title: str = Field(min_length=3, max_length=160)
@@ -83,10 +90,12 @@ Rules:
 7. Do not attribute fault to a specific publisher, advertiser, or partner unless the evidence
    directly supports it.
 8. Also write client_safe_brief: a short, advertiser-facing summary of the diagnosis and
-   recommendation. It must never mention publisher names, floor prices, internal tool names,
-   evidence IDs, database/SQL terms, or any other internal-only detail, and must not claim a
-   fix has already been applied. A governance gate reviews this text before it is releasable -
-   an unsafe brief will be withheld from the operator, not silently rewritten.
+   recommendation. Refer to the campaign by its given name at least once - never refer to it
+   only by a numeric ID, which is itself an internal identifier. It must never mention
+   publisher names, floor prices, internal tool names, evidence IDs, database/SQL terms, or
+   any other internal-only detail, and must not claim a fix has already been applied. A
+   governance gate reviews this text before it is releasable - an unsafe brief will be
+   withheld from the operator, not silently rewritten.
 """.strip().format(finish_tool=FINISH_TOOL_NAME)
 
 
